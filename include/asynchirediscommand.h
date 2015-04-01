@@ -186,7 +186,6 @@ namespace RedisCluster
             
             if( !critical && reply->type == REDIS_REPLY_STATUS && string(reply->str) == "OK" )
             {
-                std::cout << "asking ok" << std::endl;
                 that->processHiredisCommand( that->con_ );
             }
             else

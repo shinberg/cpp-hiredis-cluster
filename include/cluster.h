@@ -9,9 +9,7 @@
 #ifndef __libredisCluster__cluster__
 #define __libredisCluster__cluster__
 
-#include <iostream>
 #include <map>
-#include <string.h>
 
 extern "C"
 {
@@ -91,7 +89,6 @@ namespace RedisCluster
             
             redisConnection *conn = NULL;
             int slot = SlotHash::SlotByKey( key.c_str(), (int)key.length() );
-            std::cout << "Slot: " << slot << std::endl;
             
             SlotRange range = { slot + 1, 0 };
             
