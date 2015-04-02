@@ -1,11 +1,3 @@
-//
-//  testing.cpp
-//  libredisCluster
-//
-//  Created by Дмитрий on 15.03.15.
-//  Copyright (c) 2015 shinberg. All rights reserved.
-//
-
 #include <assert.h>
 #include <iostream>
 #include <thread>
@@ -73,13 +65,11 @@ void setKeyVal( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p )
 
 typedef void (*redisFunc_p) ( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p );
 
-
-
-void threadOneSLot( Cluster<redisAsyncContext>::ptr_t cluster_p, redisFunc_p func  )
+template < class RCLuster, typename Func >
+void testOneSLot( RCLuster cluster_p, Func func, int maxdepth )
 {
     // fill with only printable charecters to check visualy
     // but redis can also use all types of binary arrays as keys or as values
-    const int maxdepth = 5;
     const int maxprintable = 127;
     const int minprintable = 33;
     
@@ -117,24 +107,42 @@ void threadOneSLot( Cluster<redisAsyncContext>::ptr_t cluster_p, redisFunc_p fun
     cout << keysSlotCntr << endl;
 }
 
-void runOneSlotTest( )
+void runAsyncAscikngTest( )
 {
     Cluster<redisAsyncContext>::ptr_t cluster_p;
     redisFunc_p func = getKeyVal;
     
     event_init();
-    assert(evthread_use_pthreads() == 0);
     struct event_base *base = event_base_new();
-    assert( evthread_make_base_notifiable( base ) == 0 );
     
     cluster_p = AsyncHiredisCommand::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
     
-    threadOneSLot( cluster_p, func );
+    testOneSLot( cluster_p, func, 5 );
     
     event_base_dispatch(base);
     
     delete cluster_p;
     event_base_free(base);
+}
+
+void getSyncKeyVal( char *str, Cluster<redisContext>::ptr_t cluster_p )
+{
+    redisReply *reply = static_cast<redisReply*>( HiredisCommand::Command( cluster_p, str, "GET %s", str ) );
+    
+    assert( REDIS_REPLY_STRING == reply->type );
+    assert( string("test") == reply->str );
+    
+    freeReplyObject(reply);
+}
+
+void runAscikngTest()
+{
+    Cluster<redisContext>::ptr_t cluster_p;
+    cluster_p = HiredisCommand::createCluster( "192.168.33.10", 7000 );
+    
+    testOneSLot( cluster_p, getSyncKeyVal, 5 );
+    
+    delete cluster_p;
 }
 
 int main(int argc, const char * argv[])
@@ -143,8 +151,8 @@ int main(int argc, const char * argv[])
     {
 //        fillClusterSLot( );
 //        processClusterKeysSubset();
-        
-        runOneSlotTest( );
+        runAscikngTest();
+//        runAsyncAscikngTest();
     } catch ( const RedisCluster::ClusterException &e )
     {
         cout << "Cluster exception: " << e.what() << endl;

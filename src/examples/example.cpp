@@ -1,11 +1,3 @@
-//
-//  example.cpp
-//  libredisCluster
-//
-//  Created by Дмитрий on 15.03.15.
-//  Copyright (c) 2015 shinberg. All rights reserved.
-//
-
 #include <iostream>
 
 #include "hirediscommand.h"

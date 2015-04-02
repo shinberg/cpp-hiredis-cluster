@@ -1,11 +1,3 @@
-//
-//  asyncexample.cpp
-//  libredisCluster
-//
-//  Created by Дмитрий on 18.03.15.
-//  Copyright (c) 2015 shinberg. All rights reserved.
-//
-
 #include <iostream>
 #include <event2/event.h>
 #include <signal.h>

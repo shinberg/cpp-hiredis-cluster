@@ -1,10 +1,30 @@
-//
-//  command.h
-//  libredisCluster
-//
-//  Created by Дмитрий on 11.03.15.
-//  Copyright (c) 2015 shinberg. All rights reserved.
-//
+/*
+ * Copyright (c) 2015, Dmitrii Shinkevich <shinmail at gmail dot com>
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright notice,
+ *     this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above copyright
+ *     notice, this list of conditions and the following disclaimer in the
+ *     documentation and/or other materials provided with the distribution.
+ *   * Neither the name of Redis nor the names of its contributors may be used
+ *     to endorse or promote products derived from this software without
+ *     specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #ifndef __libredisCluster__command__
 #define __libredisCluster__command__
@@ -146,14 +166,27 @@ namespace RedisCluster
                     
                     freeReplyObject( reply );
                     con = cluster_p_->createNewConnection( host, port );
-                    reply = asking( con );
-                    HiredisProcess::checkCritical( reply, true, "asking error" );
                     
-                    freeReplyObject( reply );
-                    reply = processHiredisCommand( con );
-                    HiredisProcess::checkCritical( reply, false );
+                    if( con != NULL && con->err == 0 )
+                    {
+                        reply = asking( con );
+                        HiredisProcess::checkCritical( reply, true, "asking error" );
                     
-                    redisFree( con );
+                        freeReplyObject( reply );
+                        reply = processHiredisCommand( con );
+                        HiredisProcess::checkCritical( reply, false );
+                    
+                        redisFree( con );
+                    }
+                    else if( con == NULL )
+                    {
+                        throw LogicError("Can't connect while resolving asking state");
+                    }
+                    else
+                    {
+                        throw LogicError( con->errstr );
+                        redisFree( con );
+                    }
                     
                     break;
                     
@@ -161,10 +194,23 @@ namespace RedisCluster
                     
                     freeReplyObject( reply );
                     con = cluster_p_->createNewConnection( host, port );
-                    reply = processHiredisCommand( con );
                     
-                    redisFree( con );
-                    cluster_p_->moved();
+                    if( con != NULL && con->err == 0 )
+                    {
+                        reply = processHiredisCommand( con );
+                        redisFree( con );
+                        cluster_p_->moved();
+                    }
+                    else if( con == NULL )
+                    {
+                        throw LogicError("Can't connect while resolving asking state");
+                    }
+                    else
+                    {
+                        throw LogicError( con->errstr );
+                        redisFree( con );
+                    }
+                    
                     break;
                 case HiredisProcess::READY:
                     break;
