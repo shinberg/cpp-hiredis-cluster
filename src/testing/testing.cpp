@@ -6,13 +6,8 @@
 #include "hirediscommand.h"
 #include "asynchirediscommand.h"
 
-using RedisCluster::HiredisCommand;
-using RedisCluster::AsyncHiredisCommand;
-using RedisCluster::Cluster;
-
-using std::string;
-using std::cout;
-using std::endl;
+using namespace RedisCluster;
+using namespace std;
 
 void processClusterKeysSubset()
 {
@@ -41,6 +36,7 @@ static void getCallback( typename Cluster<redisAsyncContext>::ptr_t cluster_p, v
 {
     redisReply * reply = static_cast<redisReply*>( r );
     
+    assert( reply == NULL );
     assert( REDIS_REPLY_STRING == reply->type );
     assert( string("test") == reply->str );
 }
@@ -53,14 +49,36 @@ static void setCallback( typename Cluster<redisAsyncContext>::ptr_t cluster_p, v
     assert( string("OK") == reply->str );
 }
 
+AsyncHiredisCommand::Action errorHandler(const AsyncHiredisCommand &cmd,
+                                         const ClusterException &exception,
+                                         HiredisProcess::processState state )
+{
+    AsyncHiredisCommand::Action action = AsyncHiredisCommand::FINISH;
+    
+    if( dynamic_cast<const CriticalException*>(&exception) == NULL )
+    {
+        cerr << "Exception in processing async redis callback: " << exception.what() << endl;
+        cerr << "Retrying" << endl;
+        action = AsyncHiredisCommand::RETRY;
+    }
+    else
+    {
+        cerr << "Critical exception in processing async redis callback: " << exception.what() << endl;
+        action = AsyncHiredisCommand::RETRY;
+    }
+    return action;
+}
+
 void getKeyVal( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p )
 {
-    AsyncHiredisCommand::Command( cluster_p, str, getCallback, NULL, "GET %s", str );
+    AsyncHiredisCommand &cmd = AsyncHiredisCommand::Command( cluster_p, str, getCallback, NULL, "GET %s", str );
+    cmd.setUserErrorCb( errorHandler );
 }
 
 void setKeyVal( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p )
 {
-    AsyncHiredisCommand::Command( cluster_p, str, setCallback, NULL, "SET %s test",  str );
+    AsyncHiredisCommand &cmd = AsyncHiredisCommand::Command( cluster_p, str, setCallback, NULL, "SET %s test",  str );
+    cmd.setUserErrorCb( errorHandler );
 }
 
 typedef void (*redisFunc_p) ( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p );
@@ -107,7 +125,7 @@ void testOneSLot( RCLuster cluster_p, Func func, int maxdepth )
     cout << keysSlotCntr << endl;
 }
 
-void runAsyncAscikngTest( )
+void runAsyncAskingTest( )
 {
     Cluster<redisAsyncContext>::ptr_t cluster_p;
     redisFunc_p func = getKeyVal;
@@ -135,7 +153,7 @@ void getSyncKeyVal( char *str, Cluster<redisContext>::ptr_t cluster_p )
     freeReplyObject(reply);
 }
 
-void runAscikngTest()
+void runAskingTest()
 {
     Cluster<redisContext>::ptr_t cluster_p;
     cluster_p = HiredisCommand::createCluster( "192.168.33.10", 7000 );
@@ -151,8 +169,8 @@ int main(int argc, const char * argv[])
     {
 //        fillClusterSLot( );
 //        processClusterKeysSubset();
-        runAscikngTest();
-//        runAsyncAscikngTest();
+//        runAskingTest();
+        runAsyncAskingTest();
     } catch ( const RedisCluster::ClusterException &e )
     {
         cout << "Cluster exception: " << e.what() << endl;

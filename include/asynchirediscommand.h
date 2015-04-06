@@ -45,6 +45,9 @@ extern "C"
 namespace RedisCluster
 {
     using std::string;
+    
+    // asynchronous libevent async command class, can be rewrited to another
+    // async library by a few modifications
     class AsyncHiredisCommand : public NonCopyable
     {
         enum CommandType
@@ -53,19 +56,24 @@ namespace RedisCluster
             FORMATTED_STRING
         };
         
-        enum ProcessingState
-        {
-            REDIRECTING,
-            FINISHED,
-            ASKING
-        };
-        
     public:
+        
+        enum Action
+        {
+            REDIRECT,
+            FINISH,
+            ASK,
+            RETRY
+        };
         
         typedef void (*pt2AsyncAttachFn)( redisAsyncContext *, void * );
         typedef void (redisCallbackFn)( typename Cluster<redisAsyncContext>::ptr_t cluster_p, void*, void* );
+        typedef Action (userErrorCallbackFn)( const AsyncHiredisCommand &,
+                                                      const ClusterException &,
+                                                      HiredisProcess::processState );
         
-        static inline void Command( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+        
+        static inline AsyncHiredisCommand& Command( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
                                         string key,
                                         redisCallbackFn userCb,
                                         void *userPrivData,
@@ -73,11 +81,17 @@ namespace RedisCluster
                                         const char ** argv,
                                         const size_t *argvlen )
         {
-            // would be deleted in redis reply callback
-            (new AsyncHiredisCommand( cluster_p, key, userCb, userPrivData, argc, argv, argvlen ))->process();
+            // would be deleted in redis reply callback or in case of error
+            AsyncHiredisCommand *c = new AsyncHiredisCommand( cluster_p, key, userCb, userPrivData, argc, argv, argvlen );
+            if( c->process() != REDIS_OK )
+            {
+                delete c;
+                throw DisconnectedException();
+            }
+            return *c;
         }
         
-        static inline void Command( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+        static inline AsyncHiredisCommand& Command( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
                                         string key,
                                         redisCallbackFn userCb,
                                         void *userPrivData,
@@ -85,9 +99,15 @@ namespace RedisCluster
         {
             va_list ap;
             va_start(ap, format);
-            // would be deleted in redis reply callback
-            (new AsyncHiredisCommand( cluster_p, key, userCb, userPrivData, format, ap ))->process();
+            // would be deleted in redis reply callback or in case of error
+            AsyncHiredisCommand *c = new AsyncHiredisCommand( cluster_p, key, userCb, userPrivData, format, ap );
+            if( c->process() != REDIS_OK )
+            {
+                delete c;
+                throw DisconnectedException();
+            }
             va_end(ap);
+            return *c;
         }
 
         static Cluster<redisAsyncContext>::ptr_t createCluster( const char* host,
@@ -114,6 +134,16 @@ namespace RedisCluster
             return cluster;
         }
         
+        inline void* getUserPrivData()
+        {
+            return userPrivData_;
+        }
+        
+        inline void setUserErrorCb( userErrorCallbackFn *userErrorCb )
+        {
+            userErrorCb_ = userErrorCb;
+        }
+        
     protected:
         
         static void Disconnect(redisAsyncContext *ac)
@@ -131,6 +161,7 @@ namespace RedisCluster
         cluster_p_( cluster_p ),
         userCallback_p_( userCb ),
         userPrivData_( userPrivData ),
+        userErrorCb_( NULL ),
         con_( NULL ),
         key_( key ),
         cmd_(NULL),
@@ -152,6 +183,7 @@ namespace RedisCluster
         cluster_p_( cluster_p ),
         userCallback_p_( userCb ),
         userPrivData_( userPrivData ),
+        userErrorCb_( NULL ),
         con_( NULL ),
         key_( key ),
         cmd_(NULL),
@@ -181,39 +213,56 @@ namespace RedisCluster
             }
         }
         
-        inline void process()
+        inline int process()
         {
             redisAsyncContext *con = cluster_p_->getConnection( key_ );
-            processHiredisCommand( con );
+            return processHiredisCommand( con );
         }
         
-        inline void processHiredisCommand( redisAsyncContext *con )
+        inline int processHiredisCommand( redisAsyncContext *con )
         {
-            redisAsyncFormattedCommand( con, processCommandReply, static_cast<void*>( this ), cmd_, len_ );
+            return redisAsyncFormattedCommand( con, processCommandReply, static_cast<void*>( this ), cmd_, len_ );
         }
         
         static void askingCallback( redisAsyncContext *con, void *r, void *data )
         {
             redisReply *reply = static_cast<redisReply*>( r );
             AsyncHiredisCommand* that = static_cast<AsyncHiredisCommand*>( data );
+            Action commandState = ASK;
 
-            bool critical = false;
             try
             {
                 HiredisProcess::checkCritical( reply, false );
+                if( reply->type == REDIS_REPLY_STATUS && string(reply->str) == "OK" )
+                {
+                    if( that->processHiredisCommand( that->con_ ) != REDIS_OK )
+                    {
+                        throw AskingFailedException();
+                    }
+                }
+                else
+                {
+                    throw AskingFailedException();
+                }
             }
             catch ( const ClusterException &ce )
             {
-                critical = true;
+                if ( that->userErrorCb_ != NULL && that->userErrorCb_( *that, ce, HiredisProcess::ASK ) == RETRY )
+                {
+                    commandState = RETRY;
+                }
+                else
+                {
+                    commandState = FINISH;
+                }
             }
             
-            if( !critical && reply->type == REDIS_REPLY_STATUS && string(reply->str) == "OK" )
+            if( commandState == RETRY )
             {
-                that->processHiredisCommand( that->con_ );
+                retry( con, r, data );
             }
-            else
+            else if( commandState == FINISH )
             {
-                // TODO: invoke user specified error handler
                 that->userCallback_p_( that->cluster_p_, r, that->userPrivData_ );
                 delete that;
             }
@@ -223,58 +272,50 @@ namespace RedisCluster
         {
             redisReply *reply = static_cast< redisReply* >(r);
             AsyncHiredisCommand* that = static_cast<AsyncHiredisCommand*>( data );
-            ProcessingState commandState = FINISHED;
-            string host,port;
+            Action commandState = FINISH;
+            HiredisProcess::processState state = HiredisProcess::FAILED;
+            string host, port;
             
-            bool critical = false;
             try
             {
                 HiredisProcess::checkCritical( reply, false );
-            }
-            catch ( const ClusterException &ce )
-            {
-                critical = true;
-            }
-            
-            if( !critical )
-            {
-                HiredisProcess::processState state = HiredisProcess::processResult( reply, host, port);
-            
+                state = HiredisProcess::processResult( reply, host, port);
+                
                 switch ( state ) {
                         
                     case HiredisProcess::ASK:
-                        // TODO: invoke user defined redirection handler
-                        try
+                        
+                        if( that->con_ == NULL )
                         {
                             that->con_ = that->cluster_p_->createNewConnection( host, port );
-                        } catch ( const ClusterException &e )
-                        {
-                            that->con_ = NULL;
                         }
-
-                        if( that->con_ != NULL )
+                        
+                        if ( redisAsyncCommand( that->con_, askingCallback, that, "ASKING" ) == REDIS_OK )
                         {
-                            redisAsyncCommand( that->con_, askingCallback, that, "ASKING" );
-                            commandState = ASKING;
+                            commandState = ASK;
+                        }
+                        else
+                        {
+                            throw AskingFailedException();
                         }
                         break;
                         
                         
                     case HiredisProcess::MOVED:
-                        // TODO: invoke user defined redirection handler
-                        try
+                        that->cluster_p_->moved();
+                        
+                        if( that->con_ == NULL )
                         {
                             that->con_ = that->cluster_p_->createNewConnection( host, port );
-                        } catch ( const ClusterException &e )
-                        {
-                            that->con_ = NULL;
                         }
                         
-                        if( that->con_ != NULL )
+                        if( that->processHiredisCommand( that->con_ ) == REDIS_OK )
                         {
-                            that->processHiredisCommand( that->con_ );
-                            that->cluster_p_->moved();
-                            commandState = REDIRECTING;
+                            commandState = REDIRECT;
+                        }
+                        else
+                        {
+                            throw MovedFailedException();
                         }
                         break;
                         
@@ -282,18 +323,40 @@ namespace RedisCluster
                         break;
                         
                     case HiredisProcess::CLUSTERDOWN:
-                        // TODO: invoke user defined error handling function
+                        throw ClusterDownException();
                         break;
                         
                     default:
-                        // Logic Error
-                        // TODO: invoke user defined error handling function
+                        throw LogicError();
                         break;
                 }
             }
-            
-            if( commandState == FINISHED )
+            catch ( const ClusterException &ce )
             {
+                if ( that->userErrorCb_ != NULL && that->userErrorCb_( *that, ce, state ) == RETRY )
+                {
+                    commandState = RETRY;
+                }
+            }
+            
+            if( commandState == RETRY )
+            {
+                retry( con, r, data );
+            }
+            else if( commandState == FINISH )
+            {
+                that->userCallback_p_( that->cluster_p_, r, that->userPrivData_ );
+                delete that;
+            }
+        }
+        
+        static void retry( redisAsyncContext *con, void *r, void *data )
+        {
+            AsyncHiredisCommand* that = static_cast<AsyncHiredisCommand*>( data );
+            
+            if( that->processHiredisCommand( con ) != REDIS_OK )
+            {
+                that->userErrorCb_( *that, DisconnectedException(), HiredisProcess::FAILED );
                 that->userCallback_p_( that->cluster_p_, r, that->userPrivData_ );
                 delete that;
             }
@@ -310,13 +373,20 @@ namespace RedisCluster
             
                 if( con != NULL && con->err == 0 )
                 {
-                    redisLibeventAttach( con, evbase );
+                    if ( con->err != 0 || redisLibeventAttach( con, evbase ) != REDIS_OK )
+                    {
+                        redisAsyncFree( con );
+                        throw ConnectionFailedException();
+                    }
                 }
                 else
                 {
-                    redisAsyncFree( con );
                     throw ConnectionFailedException();
                 }
+            }
+            else
+            {
+                throw ConnectionFailedException();
             }
             return con;
         }
@@ -328,6 +398,8 @@ namespace RedisCluster
         redisCallbackFn *userCallback_p_;
         // user-defined callback data
         void* userPrivData_;
+        // user error handler
+        userErrorCallbackFn *userErrorCb_;
         
         // pointer to async context ( in case of redirection class creates new connection )
         redisAsyncContext *con_;

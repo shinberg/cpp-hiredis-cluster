@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
-set (ASYNC src/examples/async)
-set (TEST src/testing/test)
-set (SYNC src/examples/sync)
-set (UNIXSOCK src/examples/unix)
+set (ASYNC async)
+set (ASYNCERR asyncerr)
+set (TEST testing)
+set (SYNC sync)
+set (UNIXSOCK unix)
 
 set(PROJECT librediscluster)
 
@@ -43,17 +44,24 @@ set(UNIX_SOURCES
 set(TEST_SOURCES
         src/testing/testing.cpp)
 
+set(ASYNCERR_SOURCES
+	src/examples/asyncerrorshandling.cpp)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY bin/)
+
 add_executable (${ASYNC} ${HEADERS} ${ASYNC_SOURCES})
 add_executable (${SYNC} ${HEADERS} ${SYNC_SOURCES})
 add_executable (${TEST} ${HEADERS} ${TEST_SOURCES})
 add_executable (${UNIXSOCK} ${HEADERS} ${UNIX_SOURCES})
+add_executable (${ASYNCERR} ${HEADERS} ${ASYNCERR_SOURCES})
 
-if(USE_CLANG)
+#if(USE_CLANG)
+#target_link_libraries (${ASYNC} libhiredis.a libevent.a)
+#else(USE_CLANG)
 target_link_libraries (${ASYNC} libhiredis.a libevent.a)
-else(USE_CLANG)
-target_link_libraries (${ASYNC} libhiredis.a libevent.a)
-endif(USE_CLANG)
+#endif(USE_CLANG)
 target_link_libraries (${SYNC} libhiredis.a)
 target_link_libraries (${TEST} libhiredis.a libevent.a)
 target_link_libraries (${UNIXSOCK} libhiredis.a)
+target_link_libraries (${ASYNCERR} libhiredis.a libevent.a)
 

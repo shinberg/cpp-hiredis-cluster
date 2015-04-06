@@ -49,7 +49,8 @@ namespace RedisCluster
             MOVED,
             ASK,
             CLUSTERDOWN,
-            READY
+            READY,
+            FAILED
         };
         
         static void parsehostport( string error, string &host, string &port )

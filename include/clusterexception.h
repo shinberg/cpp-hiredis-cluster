@@ -59,6 +59,18 @@ namespace RedisCluster
         {}
     };
     
+    class AskingFailedException : public BadStateException {
+    public:
+        AskingFailedException() : BadStateException( std::string("error while processing asking command") )
+        {}
+    };
+    
+    class MovedFailedException : public BadStateException {
+    public:
+        MovedFailedException() : BadStateException( std::string("error while processing asking command") )
+        {}
+    };
+    
     class ConnectionFailedException : public CriticalException {
     public:
         ConnectionFailedException() : CriticalException( std::string("cluster connect failed: ") + strerror(errno) )
