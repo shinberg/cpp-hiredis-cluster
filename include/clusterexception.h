@@ -30,6 +30,7 @@
 #define __libredisCluster__clusterexception__
 
 #include <stdexcept>
+#include <string.h>
 
 namespace RedisCluster
 {

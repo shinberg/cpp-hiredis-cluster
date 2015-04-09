@@ -109,6 +109,22 @@ namespace RedisCluster
             va_end(ap);
             return *c;
         }
+        
+        static inline AsyncHiredisCommand& Command( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+                                                   string key,
+                                                   redisCallbackFn userCb,
+                                                   void *userPrivData,
+                                                   const char *format, va_list ap )
+        {
+            // would be deleted in redis reply callback or in case of error
+            AsyncHiredisCommand *c = new AsyncHiredisCommand( cluster_p, key, userCb, userPrivData, format, ap );
+            if( c->process() != REDIS_OK )
+            {
+                delete c;
+                throw DisconnectedException();
+            }
+            return *c;
+        }
 
         static Cluster<redisAsyncContext>::ptr_t createCluster( const char* host,
                                                                 int port,
@@ -264,7 +280,9 @@ namespace RedisCluster
             else if( commandState == FINISH )
             {
                 that->userCallback_p_( that->cluster_p_, r, that->userPrivData_ );
-                delete that;
+                
+                if( !( con->c.flags & ( REDIS_SUBSCRIBED ) ) )
+                    delete that;
             }
         }
         
@@ -346,7 +364,9 @@ namespace RedisCluster
             else if( commandState == FINISH )
             {
                 that->userCallback_p_( that->cluster_p_, r, that->userPrivData_ );
-                delete that;
+                
+                if( !( con->c.flags & ( REDIS_SUBSCRIBED ) ) )
+                    delete that;
             }
         }
         

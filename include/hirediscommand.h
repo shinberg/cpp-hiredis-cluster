@@ -94,7 +94,12 @@ namespace RedisCluster
             va_end(ap);
         }
         
-
+        static inline void* Command( typename Cluster<redisContext>::ptr_t cluster_p,
+                                    string key,
+                                    const char *format, va_list ap)
+        {
+            return HiredisCommand( cluster_p, key, format, ap ).process();
+        }
         
     protected:
         
