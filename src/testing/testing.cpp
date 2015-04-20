@@ -14,16 +14,18 @@ void processClusterKeysSubset()
     Cluster<redisContext>::ptr_t cluster_p;
     redisReply * reply;
     
-    cluster_p = HiredisCommand::createCluster( "192.168.33.10", 7000 );
+    cluster_p = HiredisCommand<>::createCluster( "192.168.33.10", 7000 );
     
     for ( int i = 0; i < 16384; i++ ) {
         
         string key = std::to_string( i );
         
-        reply = static_cast<redisReply*>( HiredisCommand::Command( cluster_p, key, "SET %s %s", key.c_str(), "test" ) );
+        reply = static_cast<redisReply*>( HiredisCommand<>::Command( cluster_p, key, "SET %s %s", key.c_str(), "test" ) );
         
         assert( REDIS_REPLY_ERROR != reply->type );
         assert( string("OK") == reply->str );
+        
+        cout << key << endl;
         
         freeReplyObject( reply );
         
@@ -145,7 +147,7 @@ void runAsyncAskingTest( )
 
 void getSyncKeyVal( char *str, Cluster<redisContext>::ptr_t cluster_p )
 {
-    redisReply *reply = static_cast<redisReply*>( HiredisCommand::Command( cluster_p, str, "GET %s", str ) );
+    redisReply *reply = static_cast<redisReply*>( HiredisCommand<>::Command( cluster_p, str, "GET %s", str ) );
     
     assert( REDIS_REPLY_STRING == reply->type );
     assert( string("test") == reply->str );
@@ -156,7 +158,7 @@ void getSyncKeyVal( char *str, Cluster<redisContext>::ptr_t cluster_p )
 void runAskingTest()
 {
     Cluster<redisContext>::ptr_t cluster_p;
-    cluster_p = HiredisCommand::createCluster( "192.168.33.10", 7000 );
+    cluster_p = HiredisCommand<>::createCluster( "192.168.33.10", 7000 );
     
     testOneSLot( cluster_p, getSyncKeyVal, 5 );
     
@@ -169,8 +171,8 @@ int main(int argc, const char * argv[])
     {
 //        fillClusterSLot( );
 //        processClusterKeysSubset();
-//        runAskingTest();
-        runAsyncAskingTest();
+        runAskingTest();
+//        runAsyncAskingTest();
     } catch ( const RedisCluster::ClusterException &e )
     {
         cout << "Cluster exception: " << e.what() << endl;

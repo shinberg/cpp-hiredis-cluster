@@ -72,13 +72,17 @@ void processUnixSocketCluster()
     redisReply * reply;
     
     // Second, pass our custom connection function
-    cluster_p = HiredisCommand::createCluster( "127.0.0.1", 7000, static_cast<void*>( &table ), customRedisConnect, redisFree );
+    cluster_p = HiredisCommand<>::createCluster( "127.0.0.1",
+                                              7000,
+                                              static_cast<void*>( &table ),
+                                              customRedisConnect,
+                                              redisFree );
     
     // That's all, we are ready to execute commands as usual
     // In case of adding nodes you need to update config
     // and restart redisCluster with destroying old and constructing some new cluster
     
-    reply = static_cast<redisReply*>( HiredisCommand::Command( cluster_p, "FOO", "SET %s %s", "FOO", "BAR" ) );
+    reply = static_cast<redisReply*>( HiredisCommand<>::Command( cluster_p, "FOO", "SET %s %s", "FOO", "BAR" ) );
     
     if( reply->type == REDIS_REPLY_STATUS  || reply->type == REDIS_REPLY_ERROR )
     {
@@ -92,13 +96,13 @@ void processUnixSocketCluster()
 
 int main(int argc, const char * argv[])
 {
-//    try
-//    {
+    try
+    {
         processUnixSocketCluster();
-//    } catch ( const RedisCluster::ClusterException &e )
-//    {
-//        cout << "Cluster exception: " << e.what() << endl;
-//    }
+    } catch ( const RedisCluster::ClusterException &e )
+    {
+        cout << "Cluster exception: " << e.what() << endl;
+    }
     return 0;
 }
 

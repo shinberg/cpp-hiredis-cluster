@@ -4,6 +4,7 @@ set (ASYNCERR asyncerr)
 set (TEST testing)
 set (SYNC sync)
 set (UNIXSOCK unix)
+set (THREADEDPOOL threadedpool)
 
 set(PROJECT librediscluster)
 
@@ -25,6 +26,7 @@ endif(USE_CLANG)
 set(HEADERS
 	include/asynchirediscommand.h
 	include/cluster.h
+	include/container.h
 	include/hirediscommand.h
 	include/hiredisprocess.h
 	include/slothash.h
@@ -47,6 +49,9 @@ set(TEST_SOURCES
 set(ASYNCERR_SOURCES
 	src/examples/asyncerrorshandling.cpp)
 
+set(THREADEDPOOL_SOURCES
+        src/examples/threadpool.cpp)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY bin/)
 
 add_executable (${ASYNC} ${HEADERS} ${ASYNC_SOURCES})
@@ -54,14 +59,19 @@ add_executable (${SYNC} ${HEADERS} ${SYNC_SOURCES})
 add_executable (${TEST} ${HEADERS} ${TEST_SOURCES})
 add_executable (${UNIXSOCK} ${HEADERS} ${UNIX_SOURCES})
 add_executable (${ASYNCERR} ${HEADERS} ${ASYNCERR_SOURCES})
+add_executable (${THREADEDPOOL} ${HEADERS} ${THREADEDPOOL_SOURCES})
 
-#if(USE_CLANG)
-#target_link_libraries (${ASYNC} libhiredis.a libevent.a)
-#else(USE_CLANG)
-target_link_libraries (${ASYNC} libhiredis.a libevent.a)
-#endif(USE_CLANG)
+if(USE_CLANG)
+target_link_libraries (${ASYNC} libhiredis.dylib libevent.dylib)
+target_link_libraries (${TEST} libhiredis.dylib libevent.dylib)
+target_link_libraries (${ASYNCERR} libhiredis.dylib libevent.dylib)
+target_link_libraries (${THREADEDPOOL} libhiredis.dylib)
+else(USE_CLANG)
+target_link_libraries (${ASYNC} libhiredis.so libevent.so librt.so)
+target_link_libraries (${TEST} libhiredis.so libevent.so librt.so)
+target_link_libraries (${ASYNCERR} libhiredis.so libevent.so librt.so)
+target_link_libraries (${THREADEDPOOL} libhiredis.so libpthread.so)
+endif(USE_CLANG)
+
 target_link_libraries (${SYNC} libhiredis.a)
-target_link_libraries (${TEST} libhiredis.a libevent.a)
 target_link_libraries (${UNIXSOCK} libhiredis.a)
-target_link_libraries (${ASYNCERR} libhiredis.a libevent.a)
-

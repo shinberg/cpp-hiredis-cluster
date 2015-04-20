@@ -41,8 +41,10 @@ extern "C"
 namespace RedisCluster
 {
     using std::string;
+    template < typename Cluster = Cluster<redisContext> >
     class HiredisCommand : public NonCopyable
     {
+        typedef redisContext Connection;
         enum CommandType
         {
             SDS,
@@ -51,31 +53,31 @@ namespace RedisCluster
         
     public:
         
-        static Cluster<redisContext>::ptr_t createCluster(const char* host,
+        static typename Cluster::ptr_t createCluster(const char* host,
                                                           int port,
                                                           void* data = NULL,
-                                                          Cluster<redisContext>::pt2RedisConnectFunc conn = ConnectFunction,
-                                                          Cluster<redisContext>::pt2RedisFreeFunc free = redisFree,
+                                                          typename Cluster::pt2RedisConnectFunc conn = connectFunction,
+                                                          typename Cluster::pt2RedisFreeFunc free = freeFunction,
                                                           const struct timeval &timeout = { 3, 0 } )
         {
-            Cluster<redisContext>::ptr_t cluster(NULL);
+            typename Cluster::ptr_t cluster(NULL);
             redisReply *reply;
             
             redisContext *con = redisConnectWithTimeout( host, port, timeout );
             if( con == NULL || con->err )
                 throw ConnectionFailedException();
             
-            reply = static_cast<redisReply*>( redisCommand( con, Cluster<redisContext>::CmdInit() ) );
+            reply = static_cast<redisReply*>( redisCommand( con, Cluster::CmdInit() ) );
             HiredisProcess::checkCritical( reply, true );
 
-            cluster = new Cluster<redisContext>( reply, conn, free, data );
+            cluster = new Cluster( reply, conn, free, data );
             
             freeReplyObject( reply );
             redisFree( con );
             return cluster;
         }
         
-        static inline void* Command( typename Cluster<redisContext>::ptr_t cluster_p,
+        static inline void* Command( typename Cluster::ptr_t cluster_p,
                                    string key,
                                    int argc,
                                    const char ** argv,
@@ -84,7 +86,7 @@ namespace RedisCluster
             return HiredisCommand( cluster_p, key, argc, argv, argvlen ).process();
         }
         
-        static inline void* Command( typename Cluster<redisContext>::ptr_t cluster_p,
+        static inline void* Command( typename Cluster::ptr_t cluster_p,
                                    string key,
                                    const char *format, ...)
         {
@@ -94,7 +96,7 @@ namespace RedisCluster
             va_end(ap);
         }
         
-        static inline void* Command( typename Cluster<redisContext>::ptr_t cluster_p,
+        static inline void* Command( typename Cluster::ptr_t cluster_p,
                                     string key,
                                     const char *format, va_list ap)
         {
@@ -103,7 +105,7 @@ namespace RedisCluster
         
     protected:
         
-        HiredisCommand( typename Cluster<redisContext>::ptr_t cluster_p,
+        HiredisCommand( typename Cluster::ptr_t cluster_p,
                        string key,
                        int argc,
                        const char ** argv,
@@ -118,7 +120,7 @@ namespace RedisCluster
             len_ = redisFormatSdsCommandArgv(&cmd_, argc, argv, argvlen);
         }
         
-        HiredisCommand( typename Cluster<redisContext>::ptr_t cluster_p,
+        HiredisCommand( typename Cluster::ptr_t cluster_p,
                        string key,
                        const char *format, va_list ap ) :
         cluster_p_( cluster_p ),
@@ -143,7 +145,7 @@ namespace RedisCluster
             }
         }
         
-        redisReply* processHiredisCommand( redisContext *con )
+        redisReply* processHiredisCommand( Connection *con )
         {
             redisReply* reply;
             redisAppendFormattedCommand( con, cmd_, len_ );
@@ -151,7 +153,7 @@ namespace RedisCluster
             return reply;
         }
         
-        redisReply* asking( redisContext *con  )
+        redisReply* asking( Connection *con  )
         {
             return static_cast<redisReply*>( redisCommand( con, "ASKING" ) );
         }
@@ -159,10 +161,13 @@ namespace RedisCluster
         void* process()
         {
             redisReply *reply;
-            redisContext *con = cluster_p_->getConnection( key_ );
+            typename Cluster::SlotConnection con = cluster_p_->getConnection( key_ );
+            typename Cluster::HostConnection hcon = { "", NULL };
             string host, port;
             
-            reply = processHiredisCommand( con );
+            reply = processHiredisCommand( con.second );
+            cluster_p_->releaseConnection( con );
+            
             HiredisProcess::checkCritical( reply, false );
             HiredisProcess::processState state = HiredisProcess::processResult( reply, host, port);
             
@@ -170,27 +175,27 @@ namespace RedisCluster
                 case HiredisProcess::ASK:
                     
                     freeReplyObject( reply );
-                    con = cluster_p_->createNewConnection( host, port );
+                    hcon = cluster_p_->createNewConnection( host, port );
                     
-                    if( con != NULL && con->err == 0 )
+                    if( hcon.second != NULL && hcon.second->err == 0 )
                     {
-                        reply = asking( con );
+                        reply = asking( hcon.second );
                         HiredisProcess::checkCritical( reply, true, "asking error" );
                     
                         freeReplyObject( reply );
-                        reply = processHiredisCommand( con );
+                        reply = processHiredisCommand( hcon.second );
                         HiredisProcess::checkCritical( reply, false );
                     
-                        redisFree( con );
+                        cluster_p_->releaseConnection( hcon );
                     }
-                    else if( con == NULL )
+                    else if( hcon.second == NULL )
                     {
                         throw LogicError("Can't connect while resolving asking state");
                     }
                     else
                     {
-                        throw LogicError( con->errstr );
-                        redisFree( con );
+                        throw LogicError( hcon.second->errstr );
+                        cluster_p_->releaseConnection( hcon );
                     }
                     
                     break;
@@ -198,23 +203,22 @@ namespace RedisCluster
                 case HiredisProcess::MOVED:
                     
                     freeReplyObject( reply );
-                    con = cluster_p_->createNewConnection( host, port );
+                    hcon = cluster_p_->createNewConnection( host, port );
                     
-                    if( con != NULL && con->err == 0 )
+                    if( hcon.second != NULL && hcon.second->err == 0 )
                     {
-                        reply = processHiredisCommand( con );
-                        redisFree( con );
+                        reply = processHiredisCommand( hcon.second );
                         cluster_p_->moved();
                     }
-                    else if( con == NULL )
+                    else if( hcon.second == NULL )
                     {
                         throw LogicError("Can't connect while resolving asking state");
                     }
                     else
                     {
-                        throw LogicError( con->errstr );
-                        redisFree( con );
+                        throw LogicError( hcon.second->errstr );
                     }
+                    cluster_p_->releaseConnection( hcon );
                     
                     break;
                 case HiredisProcess::READY:
@@ -226,12 +230,17 @@ namespace RedisCluster
             return reply;
         }
         
-        static redisContext* ConnectFunction( const char* host, int port, void * )
+        static Connection* connectFunction( const char* host, int port, void * )
         {
             return redisConnect( host, port);
         }
         
-        typename Cluster<redisContext>::ptr_t cluster_p_;
+        static void freeFunction( Connection* con )
+        {
+            redisFree( con );
+        }
+        
+        typename Cluster::ptr_t cluster_p_;
         string key_;
         char *cmd_;
         int len_;

@@ -50,6 +50,7 @@ namespace RedisCluster
     // async library by a few modifications
     class AsyncHiredisCommand : public NonCopyable
     {
+        typedef redisAsyncContext Connection;
         enum CommandType
         {
             SDS,
@@ -66,14 +67,14 @@ namespace RedisCluster
             RETRY
         };
         
-        typedef void (*pt2AsyncAttachFn)( redisAsyncContext *, void * );
-        typedef void (redisCallbackFn)( typename Cluster<redisAsyncContext>::ptr_t cluster_p, void*, void* );
+        typedef void (*pt2AsyncAttachFn)( Connection*, void * );
+        typedef void (redisCallbackFn)( typename Cluster<Connection>::ptr_t cluster_p, void*, void* );
         typedef Action (userErrorCallbackFn)( const AsyncHiredisCommand &,
                                                       const ClusterException &,
                                                       HiredisProcess::processState );
         
         
-        static inline AsyncHiredisCommand& Command( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+        static inline AsyncHiredisCommand& Command( typename Cluster<Connection>::ptr_t cluster_p,
                                         string key,
                                         redisCallbackFn userCb,
                                         void *userPrivData,
@@ -91,7 +92,7 @@ namespace RedisCluster
             return *c;
         }
         
-        static inline AsyncHiredisCommand& Command( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+        static inline AsyncHiredisCommand& Command( typename Cluster<Connection>::ptr_t cluster_p,
                                         string key,
                                         redisCallbackFn userCb,
                                         void *userPrivData,
@@ -110,7 +111,7 @@ namespace RedisCluster
             return *c;
         }
         
-        static inline AsyncHiredisCommand& Command( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+        static inline AsyncHiredisCommand& Command( typename Cluster<Connection>::ptr_t cluster_p,
                                                    string key,
                                                    redisCallbackFn userCb,
                                                    void *userPrivData,
@@ -126,24 +127,24 @@ namespace RedisCluster
             return *c;
         }
 
-        static Cluster<redisAsyncContext>::ptr_t createCluster( const char* host,
+        static typename Cluster<Connection>::ptr_t createCluster( const char* host,
                                                                 int port,
                                                                 void* data = NULL,
-                                                                Cluster<redisAsyncContext>::pt2RedisConnectFunc conn = libeventConnect,
-                                                                Cluster<redisAsyncContext>::pt2RedisFreeFunc free = Disconnect,
+                                                                typename Cluster<Connection>::pt2RedisConnectFunc conn = libeventConnect,
+                                                                typename Cluster<Connection>::pt2RedisFreeFunc free = Disconnect,
                                                                 const struct timeval &timeout = { 3, 0 } )
         {
-            Cluster<redisAsyncContext>::ptr_t cluster(NULL);
+            typename Cluster<Connection>::ptr_t cluster(NULL);
             redisReply *reply;
             
             redisContext *con = redisConnectWithTimeout( host, port, timeout );
             if( con == NULL || con->err )
                 throw ConnectionFailedException();
             
-            reply = static_cast<redisReply*>( redisCommand( con, Cluster<redisAsyncContext>::CmdInit() ) );
+            reply = static_cast<redisReply*>( redisCommand( con, Cluster<Connection>::CmdInit() ) );
             HiredisProcess::checkCritical( reply, true );
 
-            cluster = new Cluster<redisAsyncContext>( reply, conn, free, data );
+            cluster = new Cluster<Connection>( reply, conn, free, data );
             
             freeReplyObject( reply );
             redisFree( con );
@@ -162,12 +163,12 @@ namespace RedisCluster
         
     protected:
         
-        static void Disconnect(redisAsyncContext *ac)
+        static void Disconnect(Connection *ac)
         {
             redisAsyncDisconnect( ac );
         }
         
-        AsyncHiredisCommand( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+        AsyncHiredisCommand( typename Cluster<Connection>::ptr_t cluster_p,
                             string key,
                             redisCallbackFn userCb,
                             void *userPrivData,
@@ -178,7 +179,7 @@ namespace RedisCluster
         userCallback_p_( userCb ),
         userPrivData_( userPrivData ),
         userErrorCb_( NULL ),
-        con_( NULL ),
+        con_( {"",  NULL} ),
         key_( key ),
         cmd_(NULL),
         type_( SDS )
@@ -190,7 +191,7 @@ namespace RedisCluster
             len_ = redisFormatSdsCommandArgv(&cmd_, argc, argv, argvlen);
         }
         
-        AsyncHiredisCommand( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+        AsyncHiredisCommand( typename Cluster<Connection>::ptr_t cluster_p,
                             string key,
                             redisCallbackFn userCb,
                             void *userPrivData,
@@ -200,7 +201,7 @@ namespace RedisCluster
         userCallback_p_( userCb ),
         userPrivData_( userPrivData ),
         userErrorCb_( NULL ),
-        con_( NULL ),
+        con_( {"", NULL} ),
         key_( key ),
         cmd_(NULL),
         type_( FORMATTED_STRING )
@@ -214,9 +215,9 @@ namespace RedisCluster
         
         ~AsyncHiredisCommand()
         {
-            if( con_ != NULL )
+            if( con_.second != NULL )
             {
-                redisAsyncDisconnect( con_ );
+                redisAsyncDisconnect( con_.second );
             }
             
             if( type_ == SDS )
@@ -231,16 +232,16 @@ namespace RedisCluster
         
         inline int process()
         {
-            redisAsyncContext *con = cluster_p_->getConnection( key_ );
-            return processHiredisCommand( con );
+            Cluster<Connection>::SlotConnection con = cluster_p_->getConnection( key_ );
+            return processHiredisCommand( con.second );
         }
         
-        inline int processHiredisCommand( redisAsyncContext *con )
+        inline int processHiredisCommand( Connection* con )
         {
             return redisAsyncFormattedCommand( con, processCommandReply, static_cast<void*>( this ), cmd_, len_ );
         }
         
-        static void askingCallback( redisAsyncContext *con, void *r, void *data )
+        static void askingCallback( Connection* con, void *r, void *data )
         {
             redisReply *reply = static_cast<redisReply*>( r );
             AsyncHiredisCommand* that = static_cast<AsyncHiredisCommand*>( data );
@@ -251,7 +252,7 @@ namespace RedisCluster
                 HiredisProcess::checkCritical( reply, false );
                 if( reply->type == REDIS_REPLY_STATUS && string(reply->str) == "OK" )
                 {
-                    if( that->processHiredisCommand( that->con_ ) != REDIS_OK )
+                    if( that->processHiredisCommand( that->con_.second ) != REDIS_OK )
                     {
                         throw AskingFailedException();
                     }
@@ -286,7 +287,7 @@ namespace RedisCluster
             }
         }
         
-        static void processCommandReply( redisAsyncContext *con, void *r, void *data )
+        static void processCommandReply( Connection* con, void *r, void *data )
         {
             redisReply *reply = static_cast< redisReply* >(r);
             AsyncHiredisCommand* that = static_cast<AsyncHiredisCommand*>( data );
@@ -303,12 +304,12 @@ namespace RedisCluster
                         
                     case HiredisProcess::ASK:
                         
-                        if( that->con_ == NULL )
+                        if( that->con_.second == NULL )
                         {
                             that->con_ = that->cluster_p_->createNewConnection( host, port );
                         }
                         
-                        if ( redisAsyncCommand( that->con_, askingCallback, that, "ASKING" ) == REDIS_OK )
+                        if ( redisAsyncCommand( that->con_.second, askingCallback, that, "ASKING" ) == REDIS_OK )
                         {
                             commandState = ASK;
                         }
@@ -322,12 +323,12 @@ namespace RedisCluster
                     case HiredisProcess::MOVED:
                         that->cluster_p_->moved();
                         
-                        if( that->con_ == NULL )
+                        if( that->con_.second == NULL )
                         {
                             that->con_ = that->cluster_p_->createNewConnection( host, port );
                         }
                         
-                        if( that->processHiredisCommand( that->con_ ) == REDIS_OK )
+                        if( that->processHiredisCommand( that->con_.second ) == REDIS_OK )
                         {
                             commandState = REDIRECT;
                         }
@@ -370,7 +371,7 @@ namespace RedisCluster
             }
         }
         
-        static void retry( redisAsyncContext *con, void *r, void *data )
+        static void retry( Connection *con, void *r, void *data )
         {
             AsyncHiredisCommand* that = static_cast<AsyncHiredisCommand*>( data );
             
@@ -382,9 +383,9 @@ namespace RedisCluster
             }
         }
             
-        static redisAsyncContext* libeventConnect( const char* host, int port, void *data )
+        static Connection* libeventConnect( const char* host, int port, void *data )
         {
-            redisAsyncContext *con = NULL;
+            Connection *con = NULL;
             event_base *evbase = static_cast<event_base*>( data );
             
             if( evbase != NULL )
@@ -412,7 +413,7 @@ namespace RedisCluster
         }
         
         // pointer to shared cluster object ( cluster class is not threadsafe )
-        typename Cluster<redisAsyncContext>::ptr_t cluster_p_;
+        typename Cluster<Connection>::ptr_t cluster_p_;
         
         // user-defined callback to redis async command as usual
         redisCallbackFn *userCallback_p_;
@@ -422,7 +423,7 @@ namespace RedisCluster
         userErrorCallbackFn *userErrorCb_;
         
         // pointer to async context ( in case of redirection class creates new connection )
-        redisAsyncContext *con_;
+        Cluster<Connection>::HostConnection con_;
 
         // key of redis command to find proper cluster node
         string key_;

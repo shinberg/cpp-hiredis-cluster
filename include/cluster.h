@@ -38,6 +38,7 @@ extern "C"
 
 #include "slothash.h"
 #include "clusterexception.h"
+#include "container.h"
 
 namespace RedisCluster
 {
@@ -53,113 +54,135 @@ namespace RedisCluster
         const NonCopyable& operator=( const NonCopyable& );
     };
     
-    template <typename redisConnection>
+    // cluster class for managing cluster redis connections. Thread safety depends on ConnectionContainer.
+    // If ConnectionContainer is thread safe, then Cluster class is thread safe too
+    
+    template <typename redisConnection, typename ConnectionContainer = DefaultContainer<redisConnection> >
     class Cluster : public NonCopyable {
-        
+
+    public:
+        // typedefs for redis host, for redis cluster slot indexes
+        // and for pair SlotConnection(initial redis cluster connection applicable for slot range)
+        // and for pair HostConnection(redis cluster connection, created for redirection purposes)
+        typedef string Host;
         typedef unsigned int SlotIndex;
         typedef std::pair<SlotIndex, SlotIndex> SlotRange;
+        typedef std::pair<SlotRange, redisConnection*> SlotConnection;
+        typedef std::pair<Host, redisConnection*> HostConnection;
+        
+        // definition of user connect and disconnect callbacks that can be user defined
+        typedef redisConnection* (*pt2RedisConnectFunc) ( const char*, int, void* );
+        typedef void (*pt2RedisFreeFunc) ( redisConnection* );
+        // definition of user error handling function that can be user defined
+        typedef void (*MovedCb) ( void*, Cluster<redisConnection, ConnectionContainer> & );
+        // definition of raw cluster pointer
+        typedef Cluster* ptr_t;
         
         struct SlotComparator {
             bool operator()(const SlotRange& a, const SlotRange& b) const {
-                return a.first >= b.first;
+                return a.first < b.first;
             }
         };
-        typedef std::map <SlotRange, redisConnection*, SlotComparator> ClusterNodes;
         
-    public:
-        typedef redisConnection* (*pt2RedisConnectFunc) ( const char*, int, void* );
-        typedef void (*pt2RedisFreeFunc) ( redisConnection * );
-        typedef Cluster* ptr_t;
-        
-        Cluster( redisReply *reply, pt2RedisConnectFunc connect, pt2RedisFreeFunc disconnect, void *conData ) : readytouse_( false ), isbroken_( false )
+        // cluster construction is based on parsing redis reply on "CLUSTER SLOTS" command
+        Cluster( redisReply *reply, pt2RedisConnectFunc connect, pt2RedisFreeFunc disconnect, void *conData ) :
+        connections_( new  ConnectionContainer( connect, disconnect, conData ) ),
+        userMovedFn_(NULL),
+        readytouse_( false ),
+        moved_( false )
         {
-            init( reply, connect, disconnect, conData );
+            if( connect == NULL || disconnect == NULL )
+                throw InvalidArgument();
+            // init function will parse redisReply structure
+            init( reply );
         }
         
         ~Cluster()
         {
-            disconnect();
+            //disconnect();
+            delete connections_;
         }
         
+        // disconnect function applicable when we want to close all async connections from callback
         void disconnect()
         {
-            if( disconnect_ != NULL )
-            {
-                typename ClusterNodes::iterator it(nodes_.begin()), end(nodes_.end());
-                while ( it != end )
-                {
-                    disconnect_( it->second );
-                    ++it;
-                }
-            }
-            nodes_.clear();
+            connections_->disconnect();
         }
-        
+        // just cluster slots command
         inline static const char* CmdInit()
         {
             return "cluster slots";
         }
-        
-        redisConnection * getConnection ( std::string key )
+        // function gets a connection from container by slot number
+        SlotConnection getConnection ( std::string key )
         {
             if( !readytouse_ )
             {
                 throw NotInitializedException();
             }
             
-            redisConnection *conn = NULL;
-            int slot = SlotHash::SlotByKey( key.c_str(), (int)key.length() );
-            
-            SlotRange range = { slot + 1, 0 };
-            
-            typename ClusterNodes::iterator node = nodes_.lower_bound( range );
-            
-            if ( node != nodes_.end() )
+            int slot = SlotHash::SlotByKey( key.c_str(), key.length() );
+            if( slot == 1 )
             {
-                range = node->first;
-                if ( range.first > slot || range.second < slot )
-                {
-                    throw NodeSearchException();
-                }
-                else
-                {
-                    conn = node->second;
-                }
+                std::cout << "slot 1" << std::endl;
             }
-            else
-            {
-                throw NodeSearchException();
-            }
-            
-            return conn;
+            return connections_->getConnection( slot );
         }
         
         // moved method set cluster to moved state
-        // if cluster is in moved state, then you need to reinitialise it
+        // if cluster is in moved state, then you need to reinitialise it once a time
         // cluster can be used some time in moved state, but with processing redis cluster
         // redirections, this may hit some performance issues in your code
         // for information about cluster redirections read this link http://redis.io/topics/cluster-spec
-        void moved()
+        inline void moved()
+        {
+            moved_ = true;
+            if( userMovedFn_ != NULL )
+            {
+                userMovedFn_( connections_->data_, *this );
+            }
+        }
+        // can be used to identify that cluster mey need to be reinitialized in runtime
+        // because there have been some redirections
+        inline bool isMoved()
+        {
+            return moved_;
+        }
+        // set moved callback function, that can by user for logging redirections
+        // and for aborting redirections
+        inline void setMovedCb( MovedCb fn )
+        {
+            userMovedFn_ = fn;
+        }
+        // creates new connection when HiredisCommand or AsyncHiredisCommand needs a
+        // connection for follow the redirection
+        inline HostConnection createNewConnection( string host, string port )
+        {
+            return connections_->insert(host, port);
+        }
+        // if we want to cluster throw NotInitializedException (i.e. in other threads)
+        // we can use this function
+        inline void stop()
         {
             readytouse_ = false;
         }
         
-        redisConnection* createNewConnection( string host, string port )
+        // functions for releasing the connection after use
+        // usable in case of multithreaded ConnectionContainer
+        void releaseConnection( HostConnection conn )
         {
-            return connect_( host.c_str(), std::stoi(port), data_ );
+            connections_->releaseConnection( conn );
+        }
+        
+        void releaseConnection( SlotConnection conn )
+        {
+            connections_->releaseConnection( conn );
         }
         
     private:
         
-        void init(redisReply *reply, pt2RedisConnectFunc connect, pt2RedisFreeFunc disconnect, void *conData)
+        void init( redisReply *reply )
         {
-            if( connect == NULL || disconnect == NULL )
-                throw InvalidArgument();
-            
-            connect_ = connect;
-            disconnect_ = disconnect;
-            data_ = conData;
-            
             if( reply->type == REDIS_REPLY_ARRAY )
             {
                 size_t cnt = reply->elements;
@@ -177,16 +200,9 @@ namespace RedisCluster
                         SlotRange slots = { reply->element[i]->element[0]->integer,
                             reply->element[i]->element[1]->integer };
                         
-                        redisConnection *conn = connect( reply->element[i]->element[2]->element[0]->str,
-                                                        (int)reply->element[i]->element[2]->element[1]->integer,
-                                                        conData );
-                        
-                        if( conn == NULL || conn->err )
-                        {
-                            throw ConnectionFailedException();
-                        }
-                        
-                        nodes_.insert( typename ClusterNodes::value_type(slots, conn) );
+                        connections_->insert(slots,
+                                            reply->element[i]->element[2]->element[0]->str,
+                                            (int)reply->element[i]->element[2]->element[1]->integer);
                     }
                     else
                     {
@@ -200,13 +216,12 @@ namespace RedisCluster
             }
             readytouse_ = true;
         }
+
+        ConnectionContainer *connections_;
+        volatile MovedCb userMovedFn_;
+        volatile bool readytouse_;
+        volatile bool moved_;
         
-        pt2RedisConnectFunc connect_;
-        pt2RedisFreeFunc disconnect_;
-        ClusterNodes nodes_;
-        bool readytouse_;
-        bool isbroken_;
-        void* data_;
     };
 }
 
