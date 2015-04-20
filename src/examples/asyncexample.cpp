@@ -39,9 +39,9 @@ void processAsyncCommand()
     struct event_base *base = event_base_new();
     string *demoData = new string("Demo data is ok");
     
-    cluster_p = AsyncHiredisCommand::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
+    cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
     
-    AsyncHiredisCommand::Command( cluster_p,
+    AsyncHiredisCommand<>::Command( cluster_p,
                                  "FOO",
                                  setCallback,
                                  static_cast<void*>( demoData ),

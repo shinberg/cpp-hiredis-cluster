@@ -51,35 +51,35 @@ static void setCallback( typename Cluster<redisAsyncContext>::ptr_t cluster_p, v
     assert( string("OK") == reply->str );
 }
 
-AsyncHiredisCommand::Action errorHandler(const AsyncHiredisCommand &cmd,
+AsyncHiredisCommand<>::Action errorHandler(const AsyncHiredisCommand<> &cmd,
                                          const ClusterException &exception,
                                          HiredisProcess::processState state )
 {
-    AsyncHiredisCommand::Action action = AsyncHiredisCommand::FINISH;
+    AsyncHiredisCommand<>::Action action = AsyncHiredisCommand<>::FINISH;
     
     if( dynamic_cast<const CriticalException*>(&exception) == NULL )
     {
         cerr << "Exception in processing async redis callback: " << exception.what() << endl;
         cerr << "Retrying" << endl;
-        action = AsyncHiredisCommand::RETRY;
+        action = AsyncHiredisCommand<>::RETRY;
     }
     else
     {
         cerr << "Critical exception in processing async redis callback: " << exception.what() << endl;
-        action = AsyncHiredisCommand::RETRY;
+        action = AsyncHiredisCommand<>::RETRY;
     }
     return action;
 }
 
 void getKeyVal( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p )
 {
-    AsyncHiredisCommand &cmd = AsyncHiredisCommand::Command( cluster_p, str, getCallback, NULL, "GET %s", str );
+    AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p, str, getCallback, NULL, "GET %s", str );
     cmd.setUserErrorCb( errorHandler );
 }
 
 void setKeyVal( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p )
 {
-    AsyncHiredisCommand &cmd = AsyncHiredisCommand::Command( cluster_p, str, setCallback, NULL, "SET %s test",  str );
+    AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p, str, setCallback, NULL, "SET %s test",  str );
     cmd.setUserErrorCb( errorHandler );
 }
 
@@ -135,7 +135,7 @@ void runAsyncAskingTest( )
     event_init();
     struct event_base *base = event_base_new();
     
-    cluster_p = AsyncHiredisCommand::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
+    cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
     
     testOneSLot( cluster_p, func, 5 );
     

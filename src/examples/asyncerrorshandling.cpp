@@ -14,11 +14,11 @@ using namespace std;
 // in some cases to retry send a command
 // This examples shows how to do this
 
-AsyncHiredisCommand::Action errorHandler(const AsyncHiredisCommand &cmd,
+AsyncHiredisCommand<>::Action errorHandler(const AsyncHiredisCommand<> &cmd,
                                          const ClusterException &exception,
                                          HiredisProcess::processState state )
 {
-    AsyncHiredisCommand::Action action = AsyncHiredisCommand::FINISH;
+    AsyncHiredisCommand<>::Action action = AsyncHiredisCommand<>::FINISH;
     
     // Check the exception type, you can check any type of exceptions
     // This examples shows simple retry behaviour in case of exceptions is not
@@ -29,7 +29,7 @@ AsyncHiredisCommand::Action errorHandler(const AsyncHiredisCommand &cmd,
         cerr << "Exception in processing async redis callback: " << exception.what() << endl;
         cerr << "Retrying" << endl;
         // retry to send a command to redis node
-        action = AsyncHiredisCommand::RETRY;
+        action = AsyncHiredisCommand<>::RETRY;
     }
     else
     {
@@ -67,9 +67,9 @@ void processAsyncCommand()
     struct event_base *base = event_base_new();
     string *demoData = new string("Demo data is ok");
     
-    cluster_p = AsyncHiredisCommand::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
+    cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
     
-    AsyncHiredisCommand &cmd = AsyncHiredisCommand::Command( cluster_p,
+    AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p,
                                  "FOO5",
                                  setCallback,
                                  static_cast<void*>( demoData ),
