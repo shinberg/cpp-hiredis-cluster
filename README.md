@@ -1,6 +1,5 @@
 # cpp-hiredis-cluster
 c++ cluster wrapper for hiredis with async and unix sockets features
-
 ## Features:
 - redis cluster support
 - async hiredis functions are supported
@@ -10,10 +9,11 @@ c++ cluster wrapper for hiredis with async and unix sockets features
 - follow moved redirections
 - follow ask redirections
 - understandable sources
+- best performance (see performance test result [here](https://github.com/shinberg/cpp-hiredis-cluster/wiki/Performance))
 
-## Dependencies
-* c library "hiredis versioned >= 0.12.0
-* installed redis server versioned >=3.0.0
+## Dependencies:
+* library "hiredis" versioned >= 0.12.0
+* installed redis server versioned >= 3.0.0
 * configured cluster, see [cluster tutorial](http://redis.io/topics/cluster-tutorial/) on how to setup cluster
 * its better for you to know about "moved" and "asking" redirections [clusterspec](http://redis.io/topics/cluster-spec) (not necessary for quick start)
 * libevent (only if you choose asynchronous client, see "Asynchronous client example")
@@ -44,7 +44,7 @@ c++ cluster wrapper for hiredis with async and unix sockets features
     // delete cluster by its pointer
     delete cluster_p;
 ~~~
-complete source is available in src/examples/example.cpp
+> source code is available in src/examples/example.cpp
 
 ### Asynchronous client example
 
@@ -100,7 +100,9 @@ void processAsyncCommand()
     event_base_free(base);
 }
 ~~~
-full source is available in src/examples/asyncexample.cpp
+> source code is available in src/examples/asyncexample.cpp
+
+> it's easy to modify asynchronous client for use with another event loop libraries
 
 ### Other examples
 
@@ -118,7 +120,7 @@ full source is available in src/examples/asyncexample.cpp
 * If you used this library before  note that usage of AsyncHiredisCommand and HiredisCommand little. AsyncHiredisCommand and HiredisCommand change to AsyncHiredisCommand<> HiredisCommand<>
 ~~~c++
 AsyncHiredisCommand -> AsyncHiredisCommand<>
-HiredisCommand -> HiredisCommand
+HiredisCommand -> HiredisCommand<>
 ~~~
 
 
