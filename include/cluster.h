@@ -122,10 +122,6 @@ namespace RedisCluster
             }
             
             int slot = SlotHash::SlotByKey( key.c_str(), key.length() );
-            if( slot == 1 )
-            {
-                std::cout << "slot 1" << std::endl;
-            }
             return connections_->getConnection( slot );
         }
         
