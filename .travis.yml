@@ -1,0 +1,13 @@
+language: cpp
+
+compiler:
+  - clang
+  - gcc
+
+before_install: 
+  - git clone https://github.com/antirez/hiredis.git && cd hiredis && make && sudo make install && sudo ldconfig && cd ..
+
+install: make get-deps cmake
+
+mkdir build && cd /build && ../cmake && make
+
