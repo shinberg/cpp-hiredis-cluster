@@ -1,3 +1,5 @@
+[![Build Status](https://api.travis-ci.org/shinberg/cpp-hiredis-cluster.png)](https://travis-ci.org/shinberg/cpp-hiredis-cluster/)
+
 # cpp-hiredis-cluster
 c++ cluster wrapper for hiredis with async and unix sockets features
 ## Features:
