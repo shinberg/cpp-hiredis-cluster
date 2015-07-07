@@ -105,7 +105,8 @@ namespace RedisCluster {
             typename RCluster::SlotRange range = { index + 1, 0 };
             typename Storage::iterator node = storage.lower_bound( range );
             // as with lower bound we find greater (next) slotrange, so now decrement
-            --node;
+            if( node != storage.begin() )
+                --node;
             
             if ( node != storage.end() )
             {

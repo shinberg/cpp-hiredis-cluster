@@ -14,7 +14,7 @@ void processClusterKeysSubset()
     Cluster<redisContext>::ptr_t cluster_p;
     redisReply * reply;
     
-    cluster_p = HiredisCommand<>::createCluster( "192.168.33.10", 7000 );
+    cluster_p = HiredisCommand<>::createCluster( "127.0.0.1", 7000 );
     
     for ( int i = 0; i < 16384; i++ ) {
         
@@ -135,7 +135,7 @@ void runAsyncAskingTest( )
     event_init();
     struct event_base *base = event_base_new();
     
-    cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
+    cluster_p = AsyncHiredisCommand<>::createCluster( "127.0.0.1", 7000, static_cast<void*>( base ) );
     
     testOneSLot( cluster_p, func, 5 );
     
@@ -158,7 +158,7 @@ void getSyncKeyVal( char *str, Cluster<redisContext>::ptr_t cluster_p )
 void runAskingTest()
 {
     Cluster<redisContext>::ptr_t cluster_p;
-    cluster_p = HiredisCommand<>::createCluster( "192.168.33.10", 7000 );
+    cluster_p = HiredisCommand<>::createCluster( "127.0.0.1", 7000 );
     
     testOneSLot( cluster_p, getSyncKeyVal, 5 );
     

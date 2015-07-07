@@ -30,7 +30,7 @@ c++ cluster wrapper for hiredis with async and unix sockets features
     // Declare pointer to simple hiredis reply structure
     redisReply * reply;
     // Create cluster passing acceptable address and port of one node of the cluster nodes 
-    cluster_p = HiredisCommand<>::createCluster( "192.168.33.10", 7000 );
+    cluster_p = HiredisCommand<>::createCluster( "127.0.0.1", 7000 );
     // send command to redis passing created cluster pointer, key which you wish to access in the command
     // and command itself with parameters with printf like syntax
     reply = static_cast<redisReply*>( HiredisCommand<>::Command( cluster_p, "FOO", "SET %s %s", "FOO", "BAR1" ) );
@@ -83,7 +83,7 @@ void processAsyncCommand()
     // create custom data that will be passed to callback (not necessary)
     string *demoData = new string("Demo data is ok");
     // Create cluster passing acceptable address and port of one node of the cluster nodes
-    cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
+    cluster_p = AsyncHiredisCommand<>::createCluster( "127.0.0.1", 7000, static_cast<void*>( base ) );
     // send command to redis passing created cluster pointer, key which you wish to access in the command
     // callback function, that just already declared above, pointer to any user defined data
     // and command itself with parameters with printf like syntax

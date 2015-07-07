@@ -243,7 +243,7 @@ void processCommandPool()
     // use defined ThreadedPool here
     ThreadPoolCluster::ptr_t cluster_p;
     // and here as template parameter
-    cluster_p = HiredisCommand<ThreadPoolCluster>::createCluster( "192.168.33.10", 7000 );
+    cluster_p = HiredisCommand<ThreadPoolCluster>::createCluster( "127.0.0.1", 7000 );
     
     std::thread thr[threadsNum];
     for( int i = 0; i < threadsNum; ++i )

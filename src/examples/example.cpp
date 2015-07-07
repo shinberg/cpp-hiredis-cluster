@@ -16,7 +16,7 @@ void processClusterCommand()
     Cluster<redisContext>::ptr_t cluster_p;
     redisReply * reply;
     
-    cluster_p = HiredisCommand<>::createCluster( "192.168.33.10", 7000 );
+    cluster_p = HiredisCommand<>::createCluster( "127.0.0.1", 7000 );
     
     reply = static_cast<redisReply*>( HiredisCommand<>::Command( cluster_p, "FOO", "SET %s %s", "FOO", "BAR1" ) );
     

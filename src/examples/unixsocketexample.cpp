@@ -20,9 +20,9 @@ using std::endl;
 // custom connection function, which we will pass to the redis cluster library
 
 // our socket table in text format (it can be file)
-const char config[] =   "192.168.33.10:7000=/tmp/redis0.sock\n"
-"192.168.33.10:7001=/tmp/redis1.sock\n"
-"192.168.33.10:7002=/tmp/redis2.sock\n";
+const char config[] =   "127.0.0.1:7000=/tmp/redis0.sock\n"
+"127.0.0.1:7001=/tmp/redis1.sock\n"
+"127.0.0.1:7002=/tmp/redis2.sock\n";
 
 // our socket in std map format (can be replaced with unordered_map if you need so)
 typedef std::map< string, string > SocketTable;

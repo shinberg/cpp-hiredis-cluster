@@ -67,7 +67,7 @@ void processAsyncCommand()
     struct event_base *base = event_base_new();
     string *demoData = new string("Demo data is ok");
     
-    cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
+    cluster_p = AsyncHiredisCommand<>::createCluster( "127.0.0.1", 7000, static_cast<void*>( base ) );
     
     AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p,
                                  "FOO5",
