@@ -18,7 +18,7 @@ c++ cluster wrapper for hiredis with async and unix sockets features
 * installed redis server versioned >= 3.0.0
 * configured cluster, see [cluster tutorial](http://redis.io/topics/cluster-tutorial/) on how to setup cluster
 * its better for you to know about "moved" and "asking" redirections [clusterspec](http://redis.io/topics/cluster-spec) (not necessary for quick start)
-* libevent (only if you choose asynchronous client, see "Asynchronous client example")
+* libevent-2.0 (only if you choose asynchronous client, see "Asynchronous client example"), the latest stable version is [libevent-2.0.22](https://github.com/libevent/libevent/tree/release-2.0.22-stable)
 
 ## Examples
 
