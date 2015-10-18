@@ -183,6 +183,7 @@ done
 sudo chown -R vagrant:vagrant /usr/local/rvm
 gem install redis
 printf 'yes\\n' | /home/vagrant/redis/src/redis-trib.rb create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002
+sudo apt-get update
 sudo apt-get install cmake -y
 sudo apt-get install libevent-dev -y
 cd /home/vagrant/ && git clone http://github.com/redis/hiredis && cd hiredis && make && sudo make install && sudo ldconfig
