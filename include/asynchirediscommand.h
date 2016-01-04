@@ -34,6 +34,7 @@
 
 #include "cluster.h"
 #include "hiredisprocess.h"
+#include "disconnectedconnections.h"
 
 extern "C"
 {
@@ -166,7 +167,11 @@ namespace RedisCluster
         
         static void Disconnect(Connection *ac)
         {
-            redisAsyncDisconnect( ac );
+            if (!DisconnectedConnections::getInstance().isConnectionDisconnnected(ac)) {
+                redisAsyncDisconnect( ac );
+            }
+            
+            DisconnectedConnections::getInstance().delConnection(ac);
         }
         
         AsyncHiredisCommand( typename Cluster::ptr_t cluster_p,
@@ -383,7 +388,17 @@ namespace RedisCluster
                 delete that;
             }
         }
-            
+        
+        static void disconnectCallback(const redisAsyncContext *c, int status)
+        {       
+            // if destroying initiated from redisAsyncFree() status should be  REDIS_OK
+            // take a look at __redisAsyncFree() for more information
+            if (status != REDIS_OK) {
+                DisconnectedConnections::getInstance().addConnection(c);
+                throw RedisCluster::DisconnectedException();
+            }
+        }
+
         static Connection* libeventConnect( const char* host, int port, void *data )
         {
             Connection *con = NULL;
@@ -399,6 +414,10 @@ namespace RedisCluster
                     {
                         redisAsyncFree( con );
                         throw ConnectionFailedException();
+                    }
+                    else
+                    {
+                        redisAsyncSetDisconnectCallback(con, disconnectCallback);
                     }
                 }
                 else

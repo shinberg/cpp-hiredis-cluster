@@ -21,7 +21,8 @@ void processClusterCommand()
     
     for (int i=0 ; i<100 ; ++i)
     {
-        cout << "Loop iteration: " << i << endl;
+        cout << ">>> Loop iteration: " << i << endl;
+        cout << ">>> Stop or kill redis cluster to emulate cluster disconnection" << endl;
         
         reply = static_cast<redisReply*>( HiredisCommand<>::Command( cluster_p, "FOO", "SET %s %s", "FOO", "BAR1" ) );
         
@@ -32,11 +33,7 @@ void processClusterCommand()
         }
         
         freeReplyObject( reply );
-
-        cout << "Sleep..." << endl;
-        cout << "Stopping redis-server can cause segmentation fault" << endl;
-        cout << "Check it, try killall redis-server" << endl;
-        
+       
         sleep(1);
     }    
     

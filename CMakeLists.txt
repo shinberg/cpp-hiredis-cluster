@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 set (ASYNC async)
+set (ASYNC_DISCONNECT async_disconnect)
 set (ASYNCERR asyncerr)
 set (TEST testing)
 set (SYNC sync)
@@ -31,12 +32,16 @@ set(HEADERS
 	include/hirediscommand.h
 	include/hiredisprocess.h
 	include/slothash.h
-	include/clusterexception.h)
+	include/clusterexception.h
+    include/disconnectedconnections.h)
 
 include_directories(include)
 
 set(ASYNC_SOURCES
         src/examples/asyncexample.cpp)
+
+set(ASYNC_DISCONNECT_SOURCES
+        src/examples/asyncexample_disconnect.cpp)
 
 set(SYNC_SOURCES
         src/examples/example.cpp)
@@ -59,6 +64,7 @@ set(THREADEDPOOL_SOURCES
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY bin/)
 
 add_executable (${ASYNC} ${HEADERS} ${ASYNC_SOURCES})
+add_executable (${ASYNC_DISCONNECT} ${HEADERS} ${ASYNC_DISCONNECT_SOURCES})
 add_executable (${SYNC} ${HEADERS} ${SYNC_SOURCES})
 add_executable (${SYNC_DISCONNECT} ${HEADERS} ${SYNC_DISCONNECT_SOURCES})
 add_executable (${TEST} ${HEADERS} ${TEST_SOURCES})
@@ -68,11 +74,13 @@ add_executable (${THREADEDPOOL} ${HEADERS} ${THREADEDPOOL_SOURCES})
 
 if(USE_CLANG)
 target_link_libraries (${ASYNC} libhiredis.dylib libevent.dylib)
+target_link_libraries (${ASYNC_DISCONNECT} libhiredis.dylib libevent.dylib)
 target_link_libraries (${TEST} libhiredis.dylib libevent.dylib)
 target_link_libraries (${ASYNCERR} libhiredis.dylib libevent.dylib)
 target_link_libraries (${THREADEDPOOL} libhiredis.dylib)
 else(USE_CLANG)
 target_link_libraries (${ASYNC} libhiredis.so libevent.so librt.so libpthread.so)
+target_link_libraries (${ASYNC_DISCONNECT} libhiredis.so libevent.so librt.so libpthread.so)
 target_link_libraries (${TEST} libhiredis.so libevent.so librt.so libpthread.so)
 target_link_libraries (${ASYNCERR} libhiredis.so libevent.so librt.so libpthread.so)
 target_link_libraries (${THREADEDPOOL} libhiredis.so libpthread.so)
