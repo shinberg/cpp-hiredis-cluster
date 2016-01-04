@@ -3,6 +3,7 @@ set (ASYNC async)
 set (ASYNCERR asyncerr)
 set (TEST testing)
 set (SYNC sync)
+set (SYNC_DISCONNECT sync_disconnect)
 set (UNIXSOCK unix)
 set (THREADEDPOOL threadedpool)
 
@@ -40,6 +41,9 @@ set(ASYNC_SOURCES
 set(SYNC_SOURCES
         src/examples/example.cpp)
 
+set(SYNC_DISCONNECT_SOURCES
+        src/examples/example_disconnect.cpp)
+
 set(UNIX_SOURCES
         src/examples/unixsocketexample.cpp)
 
@@ -56,6 +60,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY bin/)
 
 add_executable (${ASYNC} ${HEADERS} ${ASYNC_SOURCES})
 add_executable (${SYNC} ${HEADERS} ${SYNC_SOURCES})
+add_executable (${SYNC_DISCONNECT} ${HEADERS} ${SYNC_DISCONNECT_SOURCES})
 add_executable (${TEST} ${HEADERS} ${TEST_SOURCES})
 add_executable (${UNIXSOCK} ${HEADERS} ${UNIX_SOURCES})
 add_executable (${ASYNCERR} ${HEADERS} ${ASYNCERR_SOURCES})
@@ -74,4 +79,5 @@ target_link_libraries (${THREADEDPOOL} libhiredis.so libpthread.so)
 endif(USE_CLANG)
 
 target_link_libraries (${SYNC} libhiredis.a)
+target_link_libraries (${SYNC_DISCONNECT} libhiredis.a)
 target_link_libraries (${UNIXSOCK} libhiredis.a)
