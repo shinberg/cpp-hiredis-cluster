@@ -146,8 +146,14 @@ namespace RedisCluster
         }
         
         redisReply* processHiredisCommand( Connection *con )
-        {
-            redisReply* reply;
+        {            
+            /* reply should be initialized there
+             * or checkCritical() will not throw DisconnectedException
+             * in case redis server was disconnected */
+            /* to reproduce segfault:
+             * replace nullptr with (redisReply*)123
+             * and run bin/sync_disconnect example */
+            redisReply* reply = nullptr;
             redisAppendFormattedCommand( con, cmd_, len_ );
             redisGetReply( con, (void**)&reply );
             return reply;
