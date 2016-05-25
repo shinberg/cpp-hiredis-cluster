@@ -136,6 +136,24 @@ namespace RedisCluster {
         inline void releaseConnection( typename RCluster::SlotConnection ) {}
         inline void releaseConnection( typename RCluster::HostConnection ) {}
         
+        template<typename Cons>
+        void deleteConnection(Cons connections, const redisConnection* con) {
+            for (auto it = connections.begin(); it != connections.end();) {
+                if (it->second == con) {
+                    it = connections.erase(it);
+                }
+                else {
+                    ++it;
+                }
+            }
+        }
+        
+        
+        void deleteConnection(const redisConnection* con) {
+            deleteConnection(connections_, con);
+            deleteConnection(nodes_, con);
+        }
+        
         inline
         void disconnect()
         {

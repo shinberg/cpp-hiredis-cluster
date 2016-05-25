@@ -42,7 +42,7 @@ namespace RedisCluster
 {
     using std::string;
     template < typename Cluster = Cluster<redisContext> >
-    class HiredisCommand : public NonCopyable
+    class HiredisCommand
     {
         typedef redisContext Connection;
         enum CommandType
@@ -50,6 +50,9 @@ namespace RedisCluster
             SDS,
             FORMATTED_STRING
         };
+        
+        HiredisCommand(const HiredisCommand&) = delete;
+        HiredisCommand& operator=(const HiredisCommand&) = delete;
         
     public:
         

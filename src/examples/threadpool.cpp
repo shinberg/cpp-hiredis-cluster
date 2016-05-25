@@ -174,6 +174,9 @@ public:
         disconnect<RedirectConnections>( connections_ );
     }
     
+    void deleteConnection(const redisConnection* con) {
+    }
+    
     template <typename T>
     inline void disconnect(T &cons)
     {

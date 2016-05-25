@@ -49,7 +49,7 @@ namespace RedisCluster
     // asynchronous libevent async command class, can be rewrited to another
     // async library by a few modifications
     template < typename Cluster = Cluster<redisAsyncContext> >
-    class AsyncHiredisCommand : public NonCopyable
+    class AsyncHiredisCommand
     {
         typedef redisAsyncContext Connection;
         enum CommandType
@@ -57,6 +57,15 @@ namespace RedisCluster
             SDS,
             FORMATTED_STRING
         };
+        
+        struct ConnectContext {
+            event_base *base;
+            typename Cluster::ptr_t pcluster;
+            int lifetime;
+        };
+        
+        AsyncHiredisCommand(const AsyncHiredisCommand&) = delete;
+        AsyncHiredisCommand& operator=(const AsyncHiredisCommand&) = delete;
         
     public:
         
@@ -144,11 +153,19 @@ namespace RedisCluster
             
             reply = static_cast<redisReply*>( redisCommand( con, Cluster::CmdInit() ) );
             HiredisProcess::checkCritical( reply, true );
-
-            cluster = new Cluster( reply, conn, free, data );
+            
+            if (conn == libeventConnect) {
+                ConnectContext *cc = new ConnectContext({ (event_base*)(data), nullptr, 0});
+                cluster = new Cluster(reply, conn, free, (void*)cc, clusterDestructCB, static_cast<void*>(cc));
+                cc->pcluster = cluster;
+            }
+            else
+                cluster = new Cluster( reply, conn, free, data );
+            
             
             freeReplyObject( reply );
             redisFree( con );
+            
             return cluster;
         }
         
@@ -163,11 +180,6 @@ namespace RedisCluster
         }
         
     protected:
-        
-        static void Disconnect(Connection *ac)
-        {
-            redisAsyncDisconnect( ac );
-        }
         
         AsyncHiredisCommand( typename Cluster::ptr_t cluster_p,
                             string key,
@@ -207,7 +219,6 @@ namespace RedisCluster
         cmd_(NULL),
         type_( FORMATTED_STRING )
         {
-            // TODO: check it and check for correct distruction
             if( cluster_p == NULL )
                 throw InvalidArgument();
 
@@ -229,6 +240,15 @@ namespace RedisCluster
             {
                 free( cmd_ );
             }
+        }
+        
+        static void clusterDestructCB(void *data) {
+            ConnectContext *context = static_cast<ConnectContext*>(data);
+            delete context;
+        }
+        
+        static void Disconnect(Connection *ac) {
+            redisAsyncDisconnect( ac );
         }
         
         inline int process()
@@ -383,23 +403,29 @@ namespace RedisCluster
                 delete that;
             }
         }
+        
+        static void libeventDisconnectCb(const struct redisAsyncContext*ctx, int status) {
+            ConnectContext *context = static_cast<ConnectContext*>(ctx->data);
+            context->lifetime--;
+            context->pcluster->deleteConnection(ctx);
+        }
             
         static Connection* libeventConnect( const char* host, int port, void *data )
         {
-            Connection *con = NULL;
-            event_base *evbase = static_cast<event_base*>( data );
+            Connection *con = nullptr;
+            ConnectContext *context = static_cast<ConnectContext*>(data);
             
-            if( evbase != NULL )
+            if( context != nullptr && context->base != nullptr )
             {
                 con = redisAsyncConnect( host, port );
             
-                if( con != NULL && con->err == 0 )
+                if( con != NULL && con->err == 0 && redisLibeventAttach( con, context->base ) == REDIS_OK )
                 {
-                    if ( con->err != 0 || redisLibeventAttach( con, evbase ) != REDIS_OK )
-                    {
-                        redisAsyncFree( con );
-                        throw ConnectionFailedException();
-                    }
+                    context->lifetime++;
+                    
+                    con->data = static_cast<void*>(context);
+                    
+                    redisAsyncSetDisconnectCallback(con, libeventDisconnectCb);
                 }
                 else
                 {

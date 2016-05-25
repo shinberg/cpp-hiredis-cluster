@@ -5,6 +5,7 @@ set (TEST testing)
 set (SYNC sync)
 set (UNIXSOCK unix)
 set (THREADEDPOOL threadedpool)
+set (TEST_DISCONNECT_CLUSTER testing_disconnect_cluster)
 
 set(PROJECT librediscluster)
 
@@ -46,6 +47,9 @@ set(UNIX_SOURCES
 set(TEST_SOURCES
         src/testing/testing.cpp)
 
+set(TEST_DISCONNECT_CLUSTER_SOURCES
+        src/testing/clusterdisconnect.cpp)
+
 set(ASYNCERR_SOURCES
 	src/examples/asyncerrorshandling.cpp)
 
@@ -60,6 +64,7 @@ add_executable (${TEST} ${HEADERS} ${TEST_SOURCES})
 add_executable (${UNIXSOCK} ${HEADERS} ${UNIX_SOURCES})
 add_executable (${ASYNCERR} ${HEADERS} ${ASYNCERR_SOURCES})
 add_executable (${THREADEDPOOL} ${HEADERS} ${THREADEDPOOL_SOURCES})
+add_executable (${TEST_DISCONNECT_CLUSTER} ${HEADERS} ${TEST_DISCONNECT_CLUSTER_SOURCES})
 
 if(USE_CLANG)
 target_link_libraries (${ASYNC} libhiredis.dylib libevent.dylib)

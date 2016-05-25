@@ -44,21 +44,14 @@ namespace RedisCluster
 {
     using std::string;
     
-    class NonCopyable
-    {
-    protected:
-        NonCopyable() {}
-        ~NonCopyable() {}
-    private:
-        NonCopyable( const NonCopyable& );
-        const NonCopyable& operator=( const NonCopyable& );
-    };
-    
     // cluster class for managing cluster redis connections. Thread safety depends on ConnectionContainer.
     // If ConnectionContainer is thread safe, then Cluster class is thread safe too
     
     template <typename redisConnection, typename ConnectionContainer = DefaultContainer<redisConnection> >
-    class Cluster : public NonCopyable {
+    class Cluster {
+        
+        Cluster(const Cluster&) = delete;
+        Cluster& operator=(const Cluster&) = delete;
 
     public:
         // typedefs for redis host, for redis cluster slot indexes
@@ -74,7 +67,8 @@ namespace RedisCluster
         typedef redisConnection* (*pt2RedisConnectFunc) ( const char*, int, void* );
         typedef void (*pt2RedisFreeFunc) ( redisConnection* );
         // definition of user error handling function that can be user defined
-        typedef void (*MovedCb) ( void*, Cluster<redisConnection, ConnectionContainer> & );
+        typedef void (*MovedCb) (void*, Cluster<redisConnection, ConnectionContainer> &);
+        typedef void (*DestructCb) (void*);
         // definition of raw cluster pointer
         typedef Cluster* ptr_t;
         
@@ -85,8 +79,15 @@ namespace RedisCluster
         };
         
         // cluster construction is based on parsing redis reply on "CLUSTER SLOTS" command
-        Cluster( redisReply *reply, pt2RedisConnectFunc connect, pt2RedisFreeFunc disconnect, void *conData ) :
+        Cluster( redisReply *reply,
+                pt2RedisConnectFunc connect,
+                pt2RedisFreeFunc disconnect,
+                void *conData,
+                DestructCb destructdb = nullptr,
+                void *destructdata = nullptr) :
         connections_( new  ConnectionContainer( connect, disconnect, conData ) ),
+        destructCallback_(destructdb),
+        destructData(destructdata),
         userMovedFn_(NULL),
         readytouse_( false ),
         moved_( false )
@@ -99,7 +100,8 @@ namespace RedisCluster
         
         ~Cluster()
         {
-            //disconnect();
+            if(destructCallback_)
+                destructCallback_(destructData);
             delete connections_;
         }
         
@@ -133,7 +135,7 @@ namespace RedisCluster
         inline void moved()
         {
             moved_ = true;
-            if( userMovedFn_ != NULL )
+            if( userMovedFn_ != nullptr )
             {
                 userMovedFn_( connections_->data_, *this );
             }
@@ -144,7 +146,7 @@ namespace RedisCluster
         {
             return moved_;
         }
-        // set moved callback function, that can by user for logging redirections
+        // set moved callback function, that can be used by user for logging redirections
         // and for aborting redirections
         inline void setMovedCb( MovedCb fn )
         {
@@ -163,7 +165,7 @@ namespace RedisCluster
             readytouse_ = false;
         }
         
-        // functions for releasing the connection after use
+        // functions for releasing the connection after use.
         // usable in case of multithreaded ConnectionContainer
         void releaseConnection( HostConnection conn )
         {
@@ -175,7 +177,12 @@ namespace RedisCluster
             connections_->releaseConnection( conn );
         }
         
-    private:
+        // TODO: сделать удаление соединения извне
+        void deleteConnection(const redisConnection* con) {
+            connections_->deleteConnection(con);
+        }
+        
+    protected:
         
         void init( redisReply *reply )
         {
@@ -214,10 +221,11 @@ namespace RedisCluster
         }
 
         ConnectionContainer *connections_;
-        volatile MovedCb userMovedFn_;
-        volatile bool readytouse_;
-        volatile bool moved_;
-        
+        DestructCb destructCallback_ = nullptr;
+        void* destructData = nullptr;
+        volatile MovedCb userMovedFn_ = nullptr;
+        volatile bool readytouse_ = false;
+        volatile bool moved_ = false;
     };
 }
 
