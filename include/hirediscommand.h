@@ -41,6 +41,8 @@ extern "C"
 namespace RedisCluster
 {
     using std::string;
+
+    typedef std::shared_ptr<redisReply> Reply;
     template < typename Cluster = Cluster<redisContext> >
     class HiredisCommand
     {
@@ -78,6 +80,36 @@ namespace RedisCluster
             freeReplyObject( reply );
             redisFree( con );
             return cluster;
+        }
+        
+        static void deleteReply (redisReply *reply) {
+            freeReplyObject(reply);
+        }
+        
+        static inline Reply AltCommand( typename Cluster::ptr_t cluster_p,
+                                    string key,
+                                    int argc,
+                                    const char ** argv,
+                                    const size_t *argvlen )
+        {
+            return Reply(HiredisCommand( cluster_p, key, argc, argv, argvlen ).process(), deleteReply);
+        }
+        
+        static inline Reply AltCommand( typename Cluster::ptr_t cluster_p,
+                                    string key,
+                                    const char *format, ...)
+        {
+            va_list ap;
+            va_start( ap, format );
+            return Reply(HiredisCommand( cluster_p, key, format, ap ).process(), deleteReply);
+            va_end(ap);
+        }
+        
+        static inline Reply AltCommand( typename Cluster::ptr_t cluster_p,
+                                    string key,
+                                    const char *format, va_list ap)
+        {
+            return Reply(HiredisCommand( cluster_p, key, format, ap ).process(), deleteReply);
         }
         
         static inline void* Command( typename Cluster::ptr_t cluster_p,
@@ -161,7 +193,7 @@ namespace RedisCluster
             return static_cast<redisReply*>( redisCommand( con, "ASKING" ) );
         }
         
-        void* process()
+        redisReply* process()
         {
             redisReply *reply;
             typename Cluster::SlotConnection con = cluster_p_->getConnection( key_ );

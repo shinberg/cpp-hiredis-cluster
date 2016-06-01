@@ -14,22 +14,15 @@ using std::endl;
 void processClusterCommand()
 {
     Cluster<redisContext>::ptr_t cluster_p;
-    redisReply * reply;
     
     cluster_p = HiredisCommand<>::createCluster( "192.168.33.10", 7000 );
     
-    while (true) {
+    auto reply = HiredisCommand<>::AltCommand( cluster_p, "FOO", "SET %s %s", "FOO", "BAR1" );
         
-        reply = static_cast<redisReply*>( HiredisCommand<>::Command( cluster_p, "FOO", "SET %s %s", "FOO", "BAR1" ) );
-        
-        if( reply->type == REDIS_REPLY_STATUS  || reply->type == REDIS_REPLY_ERROR )
-        {
-            cout << " Reply to SET FOO BAR " << endl;
-            cout << reply->str << endl;
-        }
-        
-        freeReplyObject( reply );
-        
+    if( reply->type == REDIS_REPLY_STATUS  || reply->type == REDIS_REPLY_ERROR )
+    {
+        cout << " Reply to SET FOO BAR " << endl;
+        cout << reply->str << endl;
     }
     delete cluster_p;
 }
