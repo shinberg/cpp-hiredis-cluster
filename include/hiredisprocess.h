@@ -97,8 +97,11 @@ namespace RedisCluster
             return state;
         }
         
-        static void checkCritical( redisReply* reply, bool errorcritical, string error = "" )
+        static void checkCritical( redisReply* reply, bool errorcritical, string error = "", redisContext *con = NULL )
         {
+            if(con!= NULL && con->err !=0) {
+                throw DisconnectedException(std::string("Err= " + std::to_string(con->err) + " : " + con->errstr));
+            }
             if( reply == NULL )
                 throw DisconnectedException();
             
