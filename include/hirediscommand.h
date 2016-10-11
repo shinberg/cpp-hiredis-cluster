@@ -32,6 +32,7 @@
 #include <iostream>
 #include "cluster.h"
 #include "hiredisprocess.h"
+#include <memory>
 
 extern "C"
 {
@@ -66,7 +67,7 @@ namespace RedisCluster
                                                           const struct timeval &timeout = { 3, 0 } )
         {
             typename Cluster::ptr_t cluster(NULL);
-            redisReply *reply;
+            redisReply *reply = nullptr;
             
             redisContext *con = redisConnectWithTimeout( host, port, timeout );
             if( con == NULL || con->err )
@@ -195,15 +196,15 @@ namespace RedisCluster
         
         redisReply* process()
         {
-            redisReply *reply;
+            redisReply *reply = nullptr;
             typename Cluster::SlotConnection con = cluster_p_->getConnection( key_ );
             typename Cluster::HostConnection hcon = { "", NULL };
             string host, port;
-            
+
             reply = processHiredisCommand( con.second );
+            HiredisProcess::checkCritical(reply, false, "", con.second);
             cluster_p_->releaseConnection( con );
-            
-            HiredisProcess::checkCritical( reply, false );
+
             HiredisProcess::processState state = HiredisProcess::processResult( reply, host, port);
             
             switch ( state ) {

@@ -80,8 +80,12 @@ namespace RedisCluster
     
     class DisconnectedException : public CriticalException {
     public:
+        std::string reportedError;
         DisconnectedException() : CriticalException( std::string("cluster host disconnected") )
         {}
+        DisconnectedException(const std::string &reportedError) : CriticalException( std::string("cluster host disconnected") ) {
+            this->reportedError = reportedError;
+        }
     };
     
     class NodeSearchException : public BadStateException {

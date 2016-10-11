@@ -145,7 +145,7 @@ namespace RedisCluster
                                                                 const struct timeval &timeout = { 3, 0 } )
         {
             typename Cluster::ptr_t cluster(NULL);
-            redisReply *reply;
+            redisReply *reply = nullptr;
             
             redisContext *con = redisConnectWithTimeout( host, port, timeout );
             if( con == NULL || con->err )
