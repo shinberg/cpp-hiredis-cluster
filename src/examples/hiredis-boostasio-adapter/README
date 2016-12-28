@@ -1,0 +1,7 @@
+From: https://github.com/jinq0123/hiredis-boostasio-adapter.git
+Branch jinq0123/master.
+
+An adapter for using hiredis with the Boost.Asio Reactor
+
+ryan.graham@gmail.com
+
