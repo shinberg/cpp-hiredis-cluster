@@ -181,16 +181,14 @@ namespace RedisCluster
             }
         }
         
-        redisReply* processHiredisCommand( Connection *con )
-        {
+        redisReply* processHiredisCommand( Connection *con ) {
             redisReply* reply;
             redisAppendFormattedCommand( con, cmd_, len_ );
             redisGetReply( con, (void**)&reply );
             return reply;
         }
         
-        redisReply* asking( Connection *con  )
-        {
+        redisReply* asking( Connection *con  ) {
             return static_cast<redisReply*>( redisCommand( con, "ASKING" ) );
         }
         
@@ -209,59 +207,44 @@ namespace RedisCluster
             
             switch ( state ) {
                 case HiredisProcess::ASK:
-                    
                     freeReplyObject( reply );
                     hcon = cluster_p_->createNewConnection( host, port );
                     
-                    if( hcon.second != NULL && hcon.second->err == 0 )
-                    {
+                    if (hcon.second != NULL && hcon.second->err == 0) {
                         reply = asking( hcon.second );
-                        HiredisProcess::checkCritical( reply, true, "asking error" );
+                        HiredisProcess::checkCritical(reply, true, "asking error");
                     
                         freeReplyObject( reply );
-                        reply = processHiredisCommand( hcon.second );
-                        HiredisProcess::checkCritical( reply, false );
+                        reply = processHiredisCommand(hcon.second);
+                        HiredisProcess::checkCritical(reply, false);
                     
                         cluster_p_->releaseConnection( hcon );
                     }
                     else if( hcon.second == NULL )
-                    {
-                        throw LogicError("Can't connect while resolving asking state");
-                    }
-                    else
-                    {
-                        throw LogicError( hcon.second->errstr );
+                        throw LogicError(nullptr, "Can't connect while resolving asking state");
+                    else {
                         cluster_p_->releaseConnection( hcon );
+                        throw LogicError(nullptr, hcon.second->errstr);
                     }
-                    
                     break;
-                    
                 case HiredisProcess::MOVED:
-                    
                     freeReplyObject( reply );
                     hcon = cluster_p_->createNewConnection( host, port );
-                    
-                    if( hcon.second != NULL && hcon.second->err == 0 )
-                    {
+                    if( hcon.second != NULL && hcon.second->err == 0 ) {
                         reply = processHiredisCommand( hcon.second );
                         cluster_p_->moved();
                     }
                     else if( hcon.second == NULL )
-                    {
-                        throw LogicError("Can't connect while resolving asking state");
-                    }
+                        throw LogicError(nullptr, "Can't connect while resolving asking state");
                     else
-                    {
-                        throw LogicError( hcon.second->errstr );
-                    }
+                        throw LogicError(nullptr, hcon.second->errstr );
                     cluster_p_->releaseConnection( hcon );
                     
                     break;
                 case HiredisProcess::READY:
                     break;
                 default:
-                    throw LogicError( "error in state processing" );
-                    break;
+                    throw LogicError(reply, "error in state processing" );
             }
             return reply;
         }

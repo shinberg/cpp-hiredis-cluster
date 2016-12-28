@@ -189,10 +189,8 @@ namespace RedisCluster
         con_( {"",  NULL} ),
         key_( key ),
         cmd_(NULL),
-        type_( SDS )
-        {
-            // TODO: check it and check for correct distruction
-            if( cluster_p == NULL )
+        type_( SDS ) {
+            if(!cluster_p)
                 throw InvalidArgument();
             
             len_ = redisFormatSdsCommandArgv(&cmd_, argc, argv, argvlen);
@@ -211,9 +209,8 @@ namespace RedisCluster
         con_( {"", NULL} ),
         key_( key ),
         cmd_(NULL),
-        type_( FORMATTED_STRING )
-        {
-            if( cluster_p == NULL )
+        type_( FORMATTED_STRING ) {
+            if(cluster_p)
                 throw InvalidArgument();
 
             len_ = redisvFormatCommand(&cmd_, format, ap);
@@ -269,12 +266,12 @@ namespace RedisCluster
                 {
                     if( that->processHiredisCommand( that->con_.second ) != REDIS_OK )
                     {
-                        throw AskingFailedException();
+                        throw AskingFailedException(nullptr);
                     }
                 }
                 else
                 {
-                    throw AskingFailedException();
+                    throw AskingFailedException(nullptr);
                 }
             }
             catch ( const ClusterException &ce )
@@ -310,59 +307,34 @@ namespace RedisCluster
             HiredisProcess::processState state = HiredisProcess::FAILED;
             string host, port;
             
-            try
-            {
+            try {
                 HiredisProcess::checkCritical( reply, false );
                 state = HiredisProcess::processResult( reply, host, port);
-                
-                switch ( state ) {
-                        
+                switch (state) {
                     case HiredisProcess::ASK:
-                        
                         if( that->con_.second == NULL )
-                        {
                             that->con_ = that->cluster_p_->createNewConnection( host, port );
-                        }
-                        
                         if ( redisAsyncCommand( that->con_.second, askingCallback, that, "ASKING" ) == REDIS_OK )
-                        {
                             commandState = ASK;
-                        }
                         else
-                        {
-                            throw AskingFailedException();
-                        }
+                            throw AskingFailedException(nullptr);
                         break;
-                        
-                        
                     case HiredisProcess::MOVED:
                         that->cluster_p_->moved();
-                        
                         if( that->con_.second == NULL )
-                        {
                             that->con_ = that->cluster_p_->createNewConnection( host, port );
-                        }
-                        
                         if( that->processHiredisCommand( that->con_.second ) == REDIS_OK )
-                        {
                             commandState = REDIRECT;
-                        }
                         else
-                        {
-                            throw MovedFailedException();
-                        }
+                            throw MovedFailedException(nullptr);
                         break;
-                        
                     case HiredisProcess::READY:
                         break;
-                        
                     case HiredisProcess::CLUSTERDOWN:
-                        throw ClusterDownException();
-                        break;
-                        
+                        throw ClusterDownException(nullptr);
+
                     default:
-                        throw LogicError();
-                        break;
+                        throw LogicError(nullptr);
                 }
             }
             catch ( const ClusterException &ce )

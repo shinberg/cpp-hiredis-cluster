@@ -32,93 +32,90 @@
 #include <stdexcept>
 #include <string.h>
 
-namespace RedisCluster
-{
+namespace RedisCluster {
     using std::string;
-    
+
     // Base class of all cluster library exceptions
     // so you are able to catch only that type of exceptions
     class ClusterException : public std::runtime_error {
     protected:
-        ClusterException( const std::string &text) : runtime_error( text )
-        {}
+        ClusterException(redisReply *reply, const std::string &text) : runtime_error(text) {
+            if (reply)
+                freeReplyObject(reply);
+        }
     };
-    
+
     // Base class of exceptions group meaning that you can't send
     // request with this cluster at all and cluster need to be reinitialized
     class CriticalException : public ClusterException {
     protected:
-        CriticalException( const std::string &text) : ClusterException( text )
-        {}
+        CriticalException(redisReply *reply, const std::string &text) : ClusterException(reply, text) {}
     };
-    
+
     // Base class of exceptions group meaning that cluster better to be reinitialized
     // otherwize it could not be able to complete some requests
     class BadStateException : public ClusterException {
     protected:
-        BadStateException( const std::string &text) : ClusterException( text )
-        {}
+        BadStateException(redisReply *reply, const std::string &text) : ClusterException(reply, text) {}
     };
-    
+
     class AskingFailedException : public BadStateException {
     public:
-        AskingFailedException() : BadStateException( std::string("error while processing asking command") )
-        {}
+        AskingFailedException(redisReply *reply) : BadStateException(reply, std::string(
+                "error while processing asking command")) {}
     };
-    
+
     class MovedFailedException : public BadStateException {
     public:
-        MovedFailedException() : BadStateException( std::string("error while processing asking command") )
-        {}
+        MovedFailedException(redisReply *reply) : BadStateException(reply, std::string(
+                "error while processing asking command")) {}
     };
-    
+
     class ConnectionFailedException : public CriticalException {
     public:
-        ConnectionFailedException() : CriticalException( std::string("cluster connect failed: ") + strerror(errno) )
-        {}
+        ConnectionFailedException() : CriticalException(nullptr,
+                                                        std::string("cluster connect failed: ") + strerror(errno)) {}
     };
-    
+
     class DisconnectedException : public CriticalException {
     public:
         std::string reportedError;
-        DisconnectedException() : CriticalException( std::string("cluster host disconnected") )
-        {}
-        DisconnectedException(const std::string &reportedError) : CriticalException( std::string("cluster host disconnected") ) {
+
+        DisconnectedException() : CriticalException(nullptr, std::string("cluster host disconnected")) {}
+
+        DisconnectedException(const std::string &reportedError) :
+                CriticalException(nullptr, std::string("cluster host disconnected")) {
             this->reportedError = reportedError;
         }
     };
-    
+
     class NodeSearchException : public BadStateException {
     public:
-        NodeSearchException() : BadStateException( std::string("node not found in cluster") )
-        {}
+        NodeSearchException() : BadStateException(nullptr, std::string("node not found in cluster")) {}
     };
-    
+
     class NotInitializedException : public CriticalException {
     public:
-        NotInitializedException() : CriticalException( std::string("cluster have not been properly initialized") )
-        {}
+        NotInitializedException() : CriticalException(nullptr,
+                                                      std::string("cluster have not been properly initialized")) {}
     };
-    
+
     class ClusterDownException : public CriticalException {
     public:
-        ClusterDownException() : CriticalException( std::string("cluster is going down") )
-        {}
+        ClusterDownException(redisReply *reply) : CriticalException(reply, std::string("cluster is going down")) {}
     };
-    
+
     class LogicError : public BadStateException {
     public:
-        LogicError() : BadStateException( std::string("cluster logic error") )
-        {}
-        LogicError( string reason ) : BadStateException( reason )
-        {}
+        LogicError(redisReply *reply) : BadStateException(reply, std::string("cluster logic error")) {}
+
+        LogicError(redisReply *reply, string reason) : BadStateException(reply, reason) {}
     };
-    
+
     // exception meaning that you had not properly passed arguments cluster or command invocation
     class InvalidArgument : public ClusterException {
     public:
-        InvalidArgument() : ClusterException( std::string("cluster invalid argument") )
-        {}
+        InvalidArgument() : ClusterException(nullptr, std::string("cluster invalid argument")) {}
     };
 }
 

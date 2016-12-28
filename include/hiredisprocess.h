@@ -65,7 +65,7 @@ namespace RedisCluster
             }
             else
             {
-                throw LogicError("error while parsing host port in redis redirection reply");
+                throw LogicError(nullptr, "error while parsing host port in redis redirection reply");
             }
         }
         
@@ -104,11 +104,9 @@ namespace RedisCluster
 
             if (reply->type == REDIS_REPLY_ERROR) {
                 if (errorcritical) {
-                    freeReplyObject(reply);
-                    throw LogicError(error);
+                    throw LogicError(reply, error);
                 } else if (string(reply->str).find("CLUSTERDOWN") != string::npos) {
-                    freeReplyObject(reply);
-                    throw ClusterDownException();
+                    throw ClusterDownException(reply);
                 }
             }
         }
