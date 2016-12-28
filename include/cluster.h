@@ -93,9 +93,9 @@ namespace RedisCluster
         moved_( false )
         {
             if( connect == NULL || disconnect == NULL )
-                throw InvalidArgument();
+                throw InvalidArgument(reply);
             // init function will parse redisReply structure
-            init( reply );
+            init(reply);
         }
         
         ~Cluster()
@@ -209,13 +209,13 @@ namespace RedisCluster
                     }
                     else
                     {
-                        throw ConnectionFailedException();
+                        throw ConnectionFailedException(reply);
                     }
                 }
             }
             else
             {
-                throw ConnectionFailedException();
+                throw ConnectionFailedException(reply);
             }
             readytouse_ = true;
         }

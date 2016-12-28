@@ -73,7 +73,7 @@ namespace RedisCluster {
 
     class ConnectionFailedException : public CriticalException {
     public:
-        ConnectionFailedException() : CriticalException(nullptr,
+        ConnectionFailedException(redisReply *reply) : CriticalException(reply,
                                                         std::string("cluster connect failed: ") + strerror(errno)) {}
     };
 
@@ -115,7 +115,7 @@ namespace RedisCluster {
     // exception meaning that you had not properly passed arguments cluster or command invocation
     class InvalidArgument : public ClusterException {
     public:
-        InvalidArgument() : ClusterException(nullptr, std::string("cluster invalid argument")) {}
+        InvalidArgument(redisReply *reply) : ClusterException(reply, std::string("cluster invalid argument")) {}
     };
 }
 

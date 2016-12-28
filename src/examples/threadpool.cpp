@@ -74,7 +74,7 @@ public:
             
             if( conn == NULL || conn->err )
             {
-                throw ConnectionFailedException();
+                throw ConnectionFailedException(nullptr);
             }
             pool.second.push( conn );
         }

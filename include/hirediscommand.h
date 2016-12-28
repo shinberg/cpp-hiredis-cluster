@@ -71,7 +71,7 @@ namespace RedisCluster
             
             redisContext *con = redisConnectWithTimeout( host, port, timeout );
             if( con == NULL || con->err )
-                throw ConnectionFailedException();
+                throw ConnectionFailedException(nullptr);
             
             reply = static_cast<redisReply*>( redisCommand( con, Cluster::CmdInit() ) );
             HiredisProcess::checkCritical( reply, true );
@@ -164,7 +164,7 @@ namespace RedisCluster
         type_( FORMATTED_STRING )
         {
             if( cluster_p == NULL )
-                throw InvalidArgument();
+                throw InvalidArgument(nullptr);
 
             len_ = redisvFormatCommand(&cmd_, format, ap);
         }

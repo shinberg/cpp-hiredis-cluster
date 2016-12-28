@@ -146,9 +146,9 @@ namespace RedisCluster
             typename Cluster::ptr_t cluster(NULL);
             redisReply *reply = nullptr;
             
-            redisContext *con = redisConnectWithTimeout( host, port, timeout );
+            redisContext *con = redisConnectWithTimeout(host, port, timeout);
             if( con == NULL || con->err )
-                throw ConnectionFailedException();
+                throw ConnectionFailedException(nullptr);
             
             reply = static_cast<redisReply*>( redisCommand( con, Cluster::CmdInit() ) );
             HiredisProcess::checkCritical( reply, true );
@@ -211,7 +211,7 @@ namespace RedisCluster
         cmd_(NULL),
         type_( FORMATTED_STRING ) {
             if(cluster_p)
-                throw InvalidArgument();
+                throw InvalidArgument(nullptr);
 
             len_ = redisvFormatCommand(&cmd_, format, ap);
         }
@@ -380,12 +380,12 @@ namespace RedisCluster
         {
             ConnectContext *context = static_cast<ConnectContext*>(data);
             if ( context == NULL || context->adapter == NULL )
-                throw ConnectionFailedException();
+                throw ConnectionFailedException(nullptr);
 
             Connection *con = redisAsyncConnect( host, port );
             if( con == NULL || con->err != 0 ||
                 context->adapter->attachContext( *con ) != REDIS_OK )
-                throw ConnectionFailedException();
+                throw ConnectionFailedException(nullptr);
 
             context->lifetime++;
             con->data = static_cast<void*>(context);

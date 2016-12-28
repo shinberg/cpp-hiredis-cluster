@@ -73,7 +73,7 @@ namespace RedisCluster {
             
             if( conn == NULL || conn->err )
             {
-                throw ConnectionFailedException();
+                throw ConnectionFailedException(nullptr);
             }
             
             nodes_.insert( typename ClusterNodes::value_type(slots, conn) );
