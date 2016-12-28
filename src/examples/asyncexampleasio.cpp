@@ -1,9 +1,13 @@
 #include <iostream>
-#include <event2/event.h>
 #include <signal.h>
 
-#include "adapters/libeventadapter.h"  // for LibeventAdapter
+#include "adapters/boostasioadapter.h"  // for BoostAsioAdapter
 #include "asynchirediscommand.h"
+#include "hiredis-boostasio-adapter/boostasio.hpp"
+
+#ifdef _WIN32
+#define SIGPIPE 13
+#endif
 
 using RedisCluster::AsyncHiredisCommand;
 using RedisCluster::Cluster;
@@ -36,9 +40,14 @@ void processAsyncCommand()
 {
     Cluster<redisAsyncContext>::ptr_t cluster_p;
     
+    boost::asio::io_service io_service;
+    RedisCluster::BoostAsioAdapter adapter( io_service );
+
+    /*loop forever, ever, even if there is no work queued*/
+    boost::asio::io_service::work forever(io_service);
+
+
     signal(SIGPIPE, SIG_IGN);
-    struct event_base *base = event_base_new();
-    RedisCluster::LibeventAdapter adapter( *base );
     string *demoData = new string("Demo data is ok");
     
     cluster_p = AsyncHiredisCommand<>::createCluster( "127.0.0.1", 7000, adapter );
@@ -50,10 +59,8 @@ void processAsyncCommand()
                                  "SET %s %s",
                                  "FOO",
                                  "BAR1" );
-    
-    event_base_dispatch(base);
+    io_service.run();
     delete cluster_p;
-    event_base_free(base);
 }
 
 int main(int argc, const char * argv[])

@@ -32,6 +32,7 @@
 #include <iostream>
 #include <assert.h>
 
+#include "adapters/adapter.h"  // for Adapter
 #include "cluster.h"
 #include "hiredisprocess.h"
 
@@ -39,15 +40,13 @@ extern "C"
 {
 #include <hiredis/hiredis.h>
 #include <hiredis/async.h>
-#include <hiredis/adapters/libevent.h>
 }
 
 namespace RedisCluster
 {
     using std::string;
     
-    // asynchronous libevent async command class, can be rewrited to another
-    // async library by a few modifications
+    // Asynchronous command class. Use Adapter to adapt different event library.
     template < typename Cluster = Cluster<redisAsyncContext> >
     class AsyncHiredisCommand
     {
@@ -57,9 +56,9 @@ namespace RedisCluster
             SDS,
             FORMATTED_STRING
         };
-        
+
         struct ConnectContext {
-            event_base *base;
+            Adapter *adapter;
             typename Cluster::ptr_t pcluster;
             int lifetime;
         };
@@ -137,12 +136,12 @@ namespace RedisCluster
             return *c;
         }
 
-        static typename Cluster::ptr_t createCluster( const char* host,
-                                                                int port,
-                                                                void* data = NULL,
-                                                                typename Cluster::pt2RedisConnectFunc conn = libeventConnect,
-                                                                typename Cluster::pt2RedisFreeFunc free = Disconnect,
-                                                                const struct timeval &timeout = { 3, 0 } )
+        // Todo: Allow hosts
+        static typename Cluster::ptr_t createCluster(
+            const char* host,
+            int port,
+            Adapter& adapter,
+            const struct timeval &timeout = { 3, 0 } )
         {
             typename Cluster::ptr_t cluster(NULL);
             redisReply *reply = nullptr;
@@ -154,14 +153,9 @@ namespace RedisCluster
             reply = static_cast<redisReply*>( redisCommand( con, Cluster::CmdInit() ) );
             HiredisProcess::checkCritical( reply, true );
             
-            if (conn == libeventConnect) {
-                ConnectContext *cc = new ConnectContext({ (event_base*)(data), nullptr, 0});
-                cluster = new Cluster(reply, conn, free, (void*)cc, clusterDestructCB, static_cast<void*>(cc));
-                cc->pcluster = cluster;
-            }
-            else
-                cluster = new Cluster( reply, conn, free, data );
-            
+            ConnectContext *cc = new ConnectContext({ &adapter, nullptr, 0});
+            cluster = new Cluster(reply, connect, disconnect, (void*)cc, clusterDestructCB, static_cast<void*>(cc));
+            cc->pcluster = cluster;
             
             freeReplyObject( reply );
             redisFree( con );
@@ -247,7 +241,7 @@ namespace RedisCluster
             delete context;
         }
         
-        static void Disconnect(Connection *ac) {
+        static void disconnect(Connection *ac) {
             redisAsyncDisconnect( ac );
         }
         
@@ -404,38 +398,26 @@ namespace RedisCluster
             }
         }
         
-        static void libeventDisconnectCb(const struct redisAsyncContext*ctx, int status) {
+        static void disconnectCb(const struct redisAsyncContext*ctx, int status) {
             ConnectContext *context = static_cast<ConnectContext*>(ctx->data);
             context->lifetime--;
             context->pcluster->deleteConnection(ctx);
         }
-            
-        static Connection* libeventConnect( const char* host, int port, void *data )
+        
+        static Connection* connect( const char* host, int port, void *data )
         {
-            Connection *con = nullptr;
             ConnectContext *context = static_cast<ConnectContext*>(data);
-            
-            if( context != nullptr && context->base != nullptr )
-            {
-                con = redisAsyncConnect( host, port );
-            
-                if( con != NULL && con->err == 0 && redisLibeventAttach( con, context->base ) == REDIS_OK )
-                {
-                    context->lifetime++;
-                    
-                    con->data = static_cast<void*>(context);
-                    
-                    redisAsyncSetDisconnectCallback(con, libeventDisconnectCb);
-                }
-                else
-                {
-                    throw ConnectionFailedException();
-                }
-            }
-            else
-            {
+            if ( context == NULL || context->adapter == NULL )
                 throw ConnectionFailedException();
-            }
+
+            Connection *con = redisAsyncConnect( host, port );
+            if( con == NULL || con->err != 0 ||
+                context->adapter->attachContext( *con ) != REDIS_OK )
+                throw ConnectionFailedException();
+
+            context->lifetime++;
+            con->data = static_cast<void*>(context);
+            redisAsyncSetDisconnectCallback(con, disconnectCb);
             return con;
         }
         
