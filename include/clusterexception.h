@@ -39,7 +39,7 @@ namespace RedisCluster
     // Base class of all cluster library exceptions
     // so you are able to catch only that type of exceptions
     class ClusterException : public std::runtime_error {
-    public:
+    protected:
         ClusterException( const std::string &text) : runtime_error( text )
         {}
     };
@@ -47,7 +47,7 @@ namespace RedisCluster
     // Base class of exceptions group meaning that you can't send
     // request with this cluster at all and cluster need to be reinitialized
     class CriticalException : public ClusterException {
-        public:
+    protected:
         CriticalException( const std::string &text) : ClusterException( text )
         {}
     };
@@ -55,7 +55,7 @@ namespace RedisCluster
     // Base class of exceptions group meaning that cluster better to be reinitialized
     // otherwize it could not be able to complete some requests
     class BadStateException : public ClusterException {
-        public:
+    protected:
         BadStateException( const std::string &text) : ClusterException( text )
         {}
     };

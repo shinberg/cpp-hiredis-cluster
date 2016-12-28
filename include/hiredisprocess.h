@@ -96,27 +96,19 @@ namespace RedisCluster
             }
             return state;
         }
-        
-        static void checkCritical( redisReply* reply, bool errorcritical, string error = "", redisContext *con = NULL )
-        {
-            if(con!= NULL && con->err !=0) {
-                throw DisconnectedException();
-            }
-            if( reply == NULL )
-                throw DisconnectedException();
-            
-            if( reply->type == REDIS_REPLY_ERROR )
-            {
-                if( errorcritical )
-                {
-                    freeReplyObject( reply );
-                    throw LogicError( error );
-                }
-                else if( string(reply->str).find("CLUSTERDOWN") != string::npos )
-                {
-                    freeReplyObject( reply );
-                    throw ClusterDownException();
 
+        static void checkCritical(redisReply *reply, bool errorcritical, string error = "",
+                                  redisContext *con = nullptr) {
+            if (!con || con->err)
+                throw DisconnectedException();
+
+            if (reply->type == REDIS_REPLY_ERROR) {
+                if (errorcritical) {
+                    freeReplyObject(reply);
+                    throw LogicError(error);
+                } else if (string(reply->str).find("CLUSTERDOWN") != string::npos) {
+                    freeReplyObject(reply);
+                    throw ClusterDownException();
                 }
             }
         }
