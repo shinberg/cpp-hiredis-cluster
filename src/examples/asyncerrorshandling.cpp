@@ -1,6 +1,7 @@
 #include <iostream>
 #include <event2/event.h>
 #include <signal.h>
+#include <adapters/libeventadapter.h>
 
 #include "asynchirediscommand.h"
 
@@ -66,8 +67,9 @@ void processAsyncCommand()
     signal(SIGPIPE, SIG_IGN);
     struct event_base *base = event_base_new();
     string *demoData = new string("Demo data is ok");
-    
-    cluster_p = AsyncHiredisCommand<>::createCluster( "127.0.0.1", 7000, static_cast<void*>( base ) );
+
+    LibeventAdapter adapter(*base);
+    cluster_p = AsyncHiredisCommand<>::createCluster("127.0.0.1", 7000, adapter);
     
     AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p,
                                  "FOO5",

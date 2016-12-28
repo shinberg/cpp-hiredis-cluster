@@ -4,9 +4,11 @@
 #include <unistd.h>
 
 #include "asynchirediscommand.h"
+#include <adapters/libeventadapter.h>
 
 using RedisCluster::AsyncHiredisCommand;
 using RedisCluster::Cluster;
+using RedisCluster::LibeventAdapter;
 
 using std::string;
 using std::out_of_range;
@@ -43,8 +45,9 @@ void processAsyncCommand()
     
     signal(SIGPIPE, SIG_IGN);
     struct event_base *base = event_base_new();
-    
-    cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, static_cast<void*>( base ) );
+
+    LibeventAdapter adapter(*base);
+    cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, adapter);
     
     while (true) {
         string *demoData = new string("Demo data is ok");

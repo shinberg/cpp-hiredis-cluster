@@ -264,7 +264,7 @@ namespace RedisCluster
 
             try
             {
-                HiredisProcess::checkCritical( reply, false );
+                HiredisProcess::checkCritical(reply, false);
                 if( reply->type == REDIS_REPLY_STATUS && string(reply->str) == "OK" )
                 {
                     if( that->processHiredisCommand( that->con_.second ) != REDIS_OK )

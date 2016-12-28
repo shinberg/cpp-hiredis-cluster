@@ -43,7 +43,7 @@ set(ASYNC_SOURCES
 #   branch jinq0123/master
 set(ASYNCASIO_SOURCES
         src/examples/asyncexampleasio.cpp
-        src/examples/hiredis-boostasio-adapter/boostasio.cpp)
+        include/adapters/hiredis-boostasio-adapter/boostasio.cpp)
 
 set(SYNC_SOURCES
         src/examples/example.cpp)

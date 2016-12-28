@@ -2,6 +2,8 @@
 #include <iostream>
 #include <thread>
 #include <event2/thread.h>
+#include <event.h>
+#include <adapters/libeventadapter.h>
 
 #include "hirediscommand.h"
 #include "asynchirediscommand.h"
@@ -134,8 +136,9 @@ void runAsyncAskingTest( )
     
     event_init();
     struct event_base *base = event_base_new();
-    
-    cluster_p = AsyncHiredisCommand<>::createCluster( "127.0.0.1", 7000, static_cast<void*>( base ) );
+
+    LibeventAdapter adapter(*base);
+    cluster_p = AsyncHiredisCommand<>::createCluster( "127.0.0.1", 7000, adapter);
     
     testOneSLot( cluster_p, func, 5 );
     

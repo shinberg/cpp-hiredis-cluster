@@ -1,9 +1,9 @@
 #include <iostream>
 #include <signal.h>
 
+#include "adapters/hiredis-boostasio-adapter/boostasio.hpp"
 #include "adapters/boostasioadapter.h"  // for BoostAsioAdapter
 #include "asynchirediscommand.h"
-#include "hiredis-boostasio-adapter/boostasio.hpp"
 
 #ifdef _WIN32
 #define SIGPIPE 13

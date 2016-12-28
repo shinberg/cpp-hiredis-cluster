@@ -22,7 +22,7 @@ namespace RedisCluster
         virtual ~LibeventAdapter() {}
     
     public:
-        virtual void attachContext( redisAsyncContext &ac )
+        virtual int attachContext( redisAsyncContext &ac ) override
         {
             return redisLibeventAttach( &ac, &base_ );
         }

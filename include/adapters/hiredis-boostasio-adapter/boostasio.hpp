@@ -1,8 +1,11 @@
 #ifndef __HIREDIS_BOOSTASIO_H__
 #define __HIREDIS_BOOSTASIO_H__
 
+extern "C"
+{
 #include <hiredis/hiredis.h>
 #include <hiredis/async.h>
+}
 
 #include <iostream>
 #include <string>
