@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 set (ASYNC async)
+set (ASYNCASIO asyncasio)
 set (ASYNCERR asyncerr)
 set (TEST testing)
 set (SYNC sync)
@@ -38,6 +39,12 @@ include_directories(include)
 set(ASYNC_SOURCES
         src/examples/asyncexample.cpp)
 
+# Need https://github.com/jinq0123/hiredis-boostasio-adapter.git
+#   branch jinq0123/master
+set(ASYNCASIO_SOURCES
+        src/examples/asyncexampleasio.cpp
+        src/examples/hiredis-boostasio-adapter/boostasio.cpp)
+
 set(SYNC_SOURCES
         src/examples/example.cpp)
 
@@ -59,6 +66,7 @@ set(THREADEDPOOL_SOURCES
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY bin/)
 
 add_executable (${ASYNC} ${HEADERS} ${ASYNC_SOURCES})
+add_executable (${ASYNCASIO} ${HEADERS} ${ASYNCASIO_SOURCES})
 add_executable (${SYNC} ${HEADERS} ${SYNC_SOURCES})
 add_executable (${TEST} ${HEADERS} ${TEST_SOURCES})
 add_executable (${UNIXSOCK} ${HEADERS} ${UNIX_SOURCES})
@@ -68,12 +76,14 @@ add_executable (${TEST_DISCONNECT_CLUSTER} ${HEADERS} ${TEST_DISCONNECT_CLUSTER_
 
 if(USE_CLANG)
 target_link_libraries (${ASYNC} libhiredis.dylib libevent.dylib)
+target_link_libraries (${ASYNCASIO} libhiredis.dylib libboost_date_time.dylib libboost_regex.dylib libboost_system.dylib)
 target_link_libraries (${TEST} libhiredis.dylib libevent.dylib)
 target_link_libraries (${ASYNCERR} libhiredis.dylib libevent.dylib)
 target_link_libraries (${THREADEDPOOL} libhiredis.dylib)
 target_link_libraries (${TEST_DISCONNECT_CLUSTER} libhiredis.dylib libevent.dylib)
 else(USE_CLANG)
 target_link_libraries (${ASYNC} libhiredis.so libevent.so librt.so libpthread.so)
+target_link_libraries (${ASYNCASIO} libhiredis.so libboost_date_time.so libboost_regex.so libboost_system.so librt.so libpthread.so)
 target_link_libraries (${TEST} libhiredis.so libevent.so librt.so libpthread.so)
 target_link_libraries (${ASYNCERR} libhiredis.so libevent.so librt.so libpthread.so)
 target_link_libraries (${THREADEDPOOL} libhiredis.so libpthread.so)
