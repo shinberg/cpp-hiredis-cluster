@@ -210,7 +210,7 @@ namespace RedisCluster
         key_( key ),
         cmd_(NULL),
         type_( FORMATTED_STRING ) {
-            if(cluster_p)
+            if(!cluster_p)
                 throw InvalidArgument(nullptr);
 
             len_ = redisvFormatCommand(&cmd_, format, ap);
