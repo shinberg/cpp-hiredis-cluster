@@ -99,8 +99,9 @@ namespace RedisCluster
 
         static void checkCritical(redisReply *reply, bool errorcritical, string error = "",
                                   redisContext *con = nullptr) {
-            if (!con || con->err)
-                throw DisconnectedException();
+            if(con!= NULL && con->err !=0) {
+        	    throw DisconnectedException();
+        	}
 
             if (reply->type == REDIS_REPLY_ERROR) {
                 if (errorcritical) {
