@@ -76,7 +76,6 @@ namespace RedisCluster
             RETRY
         };
         
-        typedef void (*pt2AsyncAttachFn)( Connection*, void * );
         typedef void (redisCallbackFn)( typename Cluster::ptr_t cluster_p, void*, void* );
         typedef Action (userErrorCallbackFn)( const AsyncHiredisCommand<Cluster> &,
                                                       const ClusterException &,
