@@ -16,24 +16,16 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-static void setCallback( typename Cluster<redisAsyncContext>::ptr_t cluster_p, void *r, void *data )
+static void setCallback( typename Cluster<redisAsyncContext>::ptr_t cluster_p,
+    const redisReply &reply, const string &demoStr )
 {
-    redisReply * reply = static_cast<redisReply*>( r );
-    string *demoData = static_cast<string*>( data );
-    
-    if (!reply) {
-        cout << "empty reply!" << endl;
-        return;
-    }
-    
-    if( reply->type == REDIS_REPLY_STATUS || reply->type == REDIS_REPLY_ERROR )
+    if( reply.type == REDIS_REPLY_STATUS || reply.type == REDIS_REPLY_ERROR )
     {
         cout << " Reply to SET FOO BAR " << endl;
-        cout << reply->str << endl;
+        cout << reply.str << endl;
     }
     
-    cout << *demoData << endl;
-    delete demoData;
+    cout << demoStr << endl;
     // cluster disconnect must be invoked, instead of redisAsyncDisconnect
     // this will brake event loop
     //cluster_p->disconnect();
@@ -50,11 +42,12 @@ void processAsyncCommand()
     cluster_p = AsyncHiredisCommand<>::createCluster( "192.168.33.10", 7000, adapter);
     
     while (true) {
-        string *demoData = new string("Demo data is ok");
+        string demoStr("Demo data is ok");
         AsyncHiredisCommand<>::Command( cluster_p,
                                            "FOO",
-                                           setCallback,
-                                           static_cast<void*>( demoData ),
+                                           [cluster_p, demoStr](const redisReply& reply) {
+                                                setCallback(cluster_p, reply, demoStr);
+                                           },
                                            "SET %s %s",
                                             "FOO",
                                            "BAR1" );

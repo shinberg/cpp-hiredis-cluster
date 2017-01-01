@@ -36,21 +36,16 @@ void processClusterKeysSubset()
     delete cluster_p;
 }
 
-static void getCallback( typename Cluster<redisAsyncContext>::ptr_t cluster_p, void *r, void *data )
+static void getCallback( const redisReply &reply )
 {
-    redisReply * reply = static_cast<redisReply*>( r );
-    
-    assert( reply == NULL );
-    assert( REDIS_REPLY_STRING == reply->type );
-    assert( string("test") == reply->str );
+    assert( REDIS_REPLY_STRING == reply.type );
+    assert( string("test") == reply.str );
 }
 
-static void setCallback( typename Cluster<redisAsyncContext>::ptr_t cluster_p, void *r, void *data )
+static void setCallback( const redisReply &reply )
 {
-    redisReply * reply = static_cast<redisReply*>( r );
-    
-    assert( REDIS_REPLY_ERROR != reply->type );
-    assert( string("OK") == reply->str );
+    assert( REDIS_REPLY_ERROR != reply.type );
+    assert( string("OK") == reply.str );
 }
 
 AsyncHiredisCommand<>::Action errorHandler(const AsyncHiredisCommand<> &cmd,
@@ -75,13 +70,15 @@ AsyncHiredisCommand<>::Action errorHandler(const AsyncHiredisCommand<> &cmd,
 
 void getKeyVal( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p )
 {
-    AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p, str, getCallback, NULL, "GET %s", str );
+    AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p, str,
+        getCallback, "GET %s", str );
     cmd.setUserErrorCb( errorHandler );
 }
 
 void setKeyVal( char *str, Cluster<redisAsyncContext>::ptr_t cluster_p )
 {
-    AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p, str, setCallback, NULL, "SET %s test",  str );
+    AsyncHiredisCommand<> &cmd = AsyncHiredisCommand<>::Command( cluster_p, str,
+        setCallback, "SET %s test", str );
     cmd.setUserErrorCb( errorHandler );
 }
 
@@ -95,7 +92,8 @@ void testOneSLot( RCLuster cluster_p, Func func, int maxdepth )
     const int maxprintable = 127;
     const int minprintable = 33;
     
-    char str[maxdepth+1];
+    std::unique_ptr<char[]> buf(new char[maxdepth+1]);
+    char * str = buf.get();
     for ( int depth = 0; depth < maxdepth; depth++ )
     {
         str[depth] = minprintable;
