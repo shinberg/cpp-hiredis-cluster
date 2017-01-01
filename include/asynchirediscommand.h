@@ -191,7 +191,7 @@ namespace RedisCluster
         cmd_(NULL),
         type_( SDS ) {
             if(!cluster_p)
-                throw InvalidArgument();
+                throw InvalidArgument(nullptr);
             
             len_ = redisFormatSdsCommandArgv(&cmd_, argc, argv, argvlen);
         }
