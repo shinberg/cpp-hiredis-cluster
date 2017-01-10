@@ -29,8 +29,9 @@
 #ifndef __libredisCluster__asynchirediscommand__
 #define __libredisCluster__asynchirediscommand__
 
-#include <iostream>
 #include <assert.h>
+#include <functional>  // for function<>
+#include <iostream>
 
 #include "adapters/adapter.h"  // for Adapter
 #include "cluster.h"
@@ -51,11 +52,6 @@ namespace RedisCluster
     class AsyncHiredisCommand
     {
         typedef redisAsyncContext Connection;
-        enum CommandType
-        {
-            SDS,
-            FORMATTED_STRING
-        };
 
         struct ConnectContext {
             Adapter *adapter;
@@ -76,22 +72,23 @@ namespace RedisCluster
             RETRY
         };
         
-        typedef void (redisCallbackFn)( typename Cluster::ptr_t cluster_p, void*, void* );
+        typedef std::function<void (const redisReply& reply)> RedisCallback;
         typedef Action (userErrorCallbackFn)( const AsyncHiredisCommand<Cluster> &,
                                                       const ClusterException &,
                                                       HiredisProcess::processState );
         
         
-        static inline AsyncHiredisCommand<Cluster>& Command( typename Cluster::ptr_t cluster_p,
-                                        string key,
-                                        redisCallbackFn userCb,
-                                        void *userPrivData,
-                                        int argc,
-                                        const char ** argv,
-                                        const size_t *argvlen )
+        static inline AsyncHiredisCommand<Cluster>& Command(
+            typename Cluster::ptr_t cluster_p,
+            string key,  // todo: const
+            int argc,
+            const char ** argv,
+            const size_t *argvlen,
+            const RedisCallback& redisCallback = RedisCallback())
         {
             // would be deleted in redis reply callback or in case of error
-            AsyncHiredisCommand<Cluster> *c = new AsyncHiredisCommand<Cluster>( cluster_p, key, userCb, userPrivData, argc, argv, argvlen );
+            AsyncHiredisCommand<Cluster> *c = new AsyncHiredisCommand<Cluster>(
+                cluster_p, key, argc, argv, argvlen, redisCallback );
             if( c->process() != REDIS_OK )
             {
                 delete c;
@@ -100,16 +97,17 @@ namespace RedisCluster
             return *c;
         }
         
-        static inline AsyncHiredisCommand<Cluster>& Command( typename Cluster::ptr_t cluster_p,
-                                        string key,
-                                        redisCallbackFn userCb,
-                                        void *userPrivData,
-                                        const char *format, ... )
+        static inline AsyncHiredisCommand<Cluster>& Command(
+            typename Cluster::ptr_t cluster_p,
+            string key,
+            const RedisCallback& redisCallback,
+            const char *format, ... )
         {
             va_list ap;
             va_start(ap, format);
             // would be deleted in redis reply callback or in case of error
-            AsyncHiredisCommand<Cluster> *c = new AsyncHiredisCommand<Cluster>( cluster_p, key, userCb, userPrivData, format, ap );
+            AsyncHiredisCommand<Cluster> *c = new AsyncHiredisCommand<Cluster>(
+                cluster_p, key, format, ap, redisCallback );
             if( c->process() != REDIS_OK )
             {
                 delete c;
@@ -119,14 +117,15 @@ namespace RedisCluster
             return *c;
         }
         
-        static inline AsyncHiredisCommand<Cluster>& Command( typename Cluster::ptr_t cluster_p,
-                                                   string key,
-                                                   redisCallbackFn userCb,
-                                                   void *userPrivData,
-                                                   const char *format, va_list ap )
+        static inline AsyncHiredisCommand<Cluster>& Command(
+            typename Cluster::ptr_t cluster_p,
+            string key,
+            const char *format, va_list ap,
+            const RedisCallback& redisCallback = RedisCallback())
         {
             // would be deleted in redis reply callback or in case of error
-            AsyncHiredisCommand<Cluster> *c = new AsyncHiredisCommand<Cluster>( cluster_p, key, userCb, userPrivData, format, ap );
+            AsyncHiredisCommand<Cluster> *c = new AsyncHiredisCommand<Cluster>(
+                cluster_p, key, format, ap, redisCallback );
             if( c->process() != REDIS_OK )
             {
                 delete c;
@@ -162,11 +161,6 @@ namespace RedisCluster
             return cluster;
         }
         
-        inline void* getUserPrivData()
-        {
-            return userPrivData_;
-        }
-        
         inline void setUserErrorCb( userErrorCallbackFn *userErrorCb )
         {
             userErrorCb_ = userErrorCb;
@@ -175,44 +169,39 @@ namespace RedisCluster
     protected:
         
         AsyncHiredisCommand( typename Cluster::ptr_t cluster_p,
-                            string key,
-                            redisCallbackFn userCb,
-                            void *userPrivData,
-                            int argc,
-                            const char ** argv,
-                            const size_t *argvlen ) :
+            string key,
+            int argc,
+            const char ** argv,
+            const size_t *argvlen,
+            const RedisCallback& redisCallback = RedisCallback()) :
         cluster_p_( cluster_p ),
-        userCallback_p_( userCb ),
-        userPrivData_( userPrivData ),
+        redisCallback_( redisCallback ),
         userErrorCb_( NULL ),
         con_( {"",  NULL} ),
-        key_( key ),
-        cmd_(NULL),
-        type_( SDS ) {
+        key_( key ) {
             if(!cluster_p)
                 throw InvalidArgument(nullptr);
-            
-            len_ = redisFormatSdsCommandArgv(&cmd_, argc, argv, argvlen);
+            sds buf = nullptr;
+            int len = redisFormatSdsCommandArgv(&buf, argc, argv, argvlen);
+            cmd_ = string(static_cast<char*>(buf), len);
+            sdsfree(buf);
         }
         
         AsyncHiredisCommand( typename Cluster::ptr_t cluster_p,
-                            string key,
-                            redisCallbackFn userCb,
-                            void *userPrivData,
-                            const char *format, va_list ap ) :
-
+            string key,
+            const char *format, va_list ap,
+            const RedisCallback& redisCallback = RedisCallback()) :
         cluster_p_( cluster_p ),
-        userCallback_p_( userCb ),
-        userPrivData_( userPrivData ),
+        redisCallback_( redisCallback ),
         userErrorCb_( NULL ),
         con_( {"", NULL} ),
-        key_( key ),
-        cmd_(NULL),
-        type_( FORMATTED_STRING ) {
+        key_( key ) {
             if(!cluster_p)
                 throw InvalidArgument(nullptr);
-
-            len_ = redisvFormatCommand(&cmd_, format, ap);
+            char * buf = nullptr;
+            int len = redisvFormatCommand(&buf, format, ap);
+            cmd_ = string(buf, len);
+            free(buf);
         }
         
         ~AsyncHiredisCommand()
@@ -220,15 +209,6 @@ namespace RedisCluster
             if( con_.second != NULL )
             {
                 redisAsyncDisconnect( con_.second );
-            }
-            
-            if( type_ == SDS )
-            {
-                sdsfree( (sds)cmd_ );
-            }
-            else
-            {
-                free( cmd_ );
             }
         }
         
@@ -249,10 +229,11 @@ namespace RedisCluster
         
         inline int processHiredisCommand( Connection* con )
         {
-            return redisAsyncFormattedCommand( con, processCommandReply, static_cast<void*>( this ), cmd_, len_ );
+            return redisAsyncFormattedCommand( con, processCommandReply,
+                static_cast<void*>( this ), cmd_.data(), cmd_.size() );
         }
         
-        static void askingCallback( Connection* con, void *r, void *data )
+        static void runRedisCallback( Connection* con, void *r, void *data )
         {
             redisReply *reply = static_cast<redisReply*>(r);
             AsyncHiredisCommand<Cluster>* that = static_cast<AsyncHiredisCommand<Cluster>*>( data );
@@ -291,8 +272,7 @@ namespace RedisCluster
             }
             else if( commandState == FINISH )
             {
-                that->userCallback_p_( that->cluster_p_, r, that->userPrivData_ );
-                
+                that->runRedisCallback( *reply );
                 if( !( con->c.flags & ( REDIS_SUBSCRIBED ) ) )
                     delete that;
             }
@@ -313,7 +293,7 @@ namespace RedisCluster
                     case HiredisProcess::ASK:
                         if( that->con_.second == NULL )
                             that->con_ = that->cluster_p_->createNewConnection( host, port );
-                        if ( redisAsyncCommand( that->con_.second, askingCallback, that, "ASKING" ) == REDIS_OK )
+                        if ( redisAsyncCommand( that->con_.second, runRedisCallback, that, "ASKING" ) == REDIS_OK )
                             commandState = ASK;
                         else
                             throw AskingFailedException(nullptr);
@@ -350,8 +330,7 @@ namespace RedisCluster
             }
             else if( commandState == FINISH )
             {
-                that->userCallback_p_( that->cluster_p_, r, that->userPrivData_ );
-                
+                that->runRedisCallback( *reply );
                 if( !( con->c.flags & ( REDIS_SUBSCRIBED ) ) )
                     delete that;
             }
@@ -363,8 +342,11 @@ namespace RedisCluster
             
             if( that->processHiredisCommand( con ) != REDIS_OK )
             {
+                // XXX check NULL
                 that->userErrorCb_( *that, DisconnectedException(), HiredisProcess::FAILED );
-                that->userCallback_p_( that->cluster_p_, r, that->userPrivData_ );
+                assert(r);
+                redisReply *reply = static_cast< redisReply* >(r);
+                that->runRedisCallback( *reply );
                 delete that;
             }
         }
@@ -391,14 +373,20 @@ namespace RedisCluster
             redisAsyncSetDisconnectCallback(con, disconnectCb);
             return con;
         }
-        
+
+    private:
+        void runRedisCallback( const redisReply& reply ) const
+        {
+            if (redisCallback_)
+                redisCallback_( reply );
+        }
+
+    private:
         // pointer to shared cluster object ( cluster class is not threadsafe )
         typename Cluster::ptr_t cluster_p_;
         
-        // user-defined callback to redis async command as usual
-        redisCallbackFn *userCallback_p_;
-        // user-defined callback data
-        void* userPrivData_;
+        // user-defined callback to redis async command
+        RedisCallback redisCallback_;
         // user error handler
         userErrorCallbackFn *userErrorCb_;
         
@@ -407,12 +395,7 @@ namespace RedisCluster
 
         // key of redis command to find proper cluster node
         string key_;
-        // pointer to formatted hiredis object
-        char *cmd_;
-        // length of formatted hiredis object
-        int len_;
-        // type of formatted hiredis object
-        CommandType type_;
+        string cmd_;
     };
 }
 
