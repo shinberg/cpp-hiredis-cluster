@@ -97,17 +97,20 @@ namespace RedisCluster
             return state;
         }
 
-        static void checkCritical(redisReply *reply, bool errorcritical, string error = "",
-                                  redisContext *con = nullptr) {
+        static void checkCritical( redisReply *reply, bool errorcritical, bool free_reply_obj = true,
+                                   string error = "", redisContext *con = nullptr ) {
             if(con!= NULL && con->err !=0) {
         	    throw DisconnectedException();
         	}
 
             if (reply->type == REDIS_REPLY_ERROR) {
+                // The constructors of these exception objects will free the reply object if it's not a nullptr.
+                // In some case, such as in hiredis callbacks, the redisReply object is owned by hiredis and
+                // should not be freed by us. So let's pass nullptr to construct exception objects instead.
                 if (errorcritical) {
-                    throw LogicError(reply, error);
+                    throw LogicError(free_reply_obj ? reply : nullptr, error);
                 } else if (string(reply->str).find("CLUSTERDOWN") != string::npos) {
-                    throw ClusterDownException(reply);
+                    throw ClusterDownException(free_reply_obj ? reply : nullptr);
                 }
             }
         }
