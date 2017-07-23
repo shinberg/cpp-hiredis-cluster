@@ -74,7 +74,7 @@ namespace RedisCluster
             processState state = READY;
             if ( reply->type == REDIS_REPLY_ERROR )
             {
-                string error ( reply->str, reply->len );
+                string error ( reply->str, static_cast<size_t>( reply->len ) );
                 
                 if( error.find( "ASK" ) == 0 )
                 {

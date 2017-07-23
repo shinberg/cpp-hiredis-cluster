@@ -178,7 +178,8 @@ namespace RedisCluster
         redisCallback_( redisCallback ),
         userErrorCb_( NULL ),
         con_( {"",  NULL} ),
-        key_( key ) {
+        key_( key ),
+        cmd_{} {
             if(!cluster_p)
                 throw InvalidArgument(nullptr);
             sds buf = nullptr;
@@ -195,15 +196,16 @@ namespace RedisCluster
         redisCallback_( redisCallback ),
         userErrorCb_( NULL ),
         con_( {"", NULL} ),
-        key_( key ) {
+        key_( key ),
+        cmd_{} {
             if(!cluster_p)
                 throw InvalidArgument(nullptr);
             char * buf = nullptr;
             int len = redisvFormatCommand(&buf, format, ap);
-            cmd_ = string(buf, len);
+            cmd_ = string(buf,static_cast<size_t>( len ) );
             free(buf);
         }
-        
+         
         ~AsyncHiredisCommand()
         {
             if( con_.second != NULL )
@@ -242,7 +244,7 @@ namespace RedisCluster
             try
             {
                 HiredisProcess::checkCritical(reply, false, false);
-                if( reply->type == REDIS_REPLY_STATUS && string(reply->str) == "OK" )
+                if( reply->type == REDIS_REPLY_STATUS && !strcmp( reply->str, "OK" ) )
                 {
                     if( that->processHiredisCommand( that->con_.second ) != REDIS_OK )
                     {
@@ -351,7 +353,7 @@ namespace RedisCluster
             }
         }
         
-        static void disconnectCb(const struct redisAsyncContext*ctx, int status) {
+        static void disconnectCb(const struct redisAsyncContext*ctx, int /*status*/) {
             ConnectContext *context = static_cast<ConnectContext*>(ctx->data);
             context->lifetime--;
             context->pcluster->deleteConnection(ctx);
