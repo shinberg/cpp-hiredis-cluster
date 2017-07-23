@@ -203,7 +203,7 @@ namespace RedisCluster
             HiredisProcess::checkCritical(reply, false, "", con.second);
             cluster_p_->releaseConnection( con );
 
-            HiredisProcess::processState state = HiredisProcess::processResult( reply, host, port);
+            HiredisProcess::processState state = HiredisProcess::processResult(reply, false, true, "", con.second);
             
             switch ( state ) {
                 case HiredisProcess::ASK:
