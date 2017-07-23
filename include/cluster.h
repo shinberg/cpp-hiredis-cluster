@@ -123,7 +123,7 @@ namespace RedisCluster
                 throw NotInitializedException();
             }
             
-            int slot = SlotHash::SlotByKey( key.c_str(), key.size() ); // NOLINT
+            int slot = SlotHash::SlotByKey( key.c_str(), key.length() );
             return connections_->getConnection( slot );
         }
         
