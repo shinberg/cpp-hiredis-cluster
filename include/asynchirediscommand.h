@@ -202,7 +202,7 @@ namespace RedisCluster
                 throw InvalidArgument(nullptr);
             char * buf = nullptr;
             int len = redisvFormatCommand(&buf, format, ap);
-            cmd_ = string(buf,static_cast<size_t>( len ) );
+            cmd_ = string(buf,len);
             free(buf);
         }
          
