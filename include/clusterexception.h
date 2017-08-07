@@ -81,10 +81,13 @@ namespace RedisCluster {
     public:
         std::string reportedError;
 
-        DisconnectedException() : CriticalException(nullptr, std::string("cluster host disconnected")) {}
+        DisconnectedException() 
+            : CriticalException(nullptr, std::string("cluster host disconnected"))
+            , reportedError{} {}
 
-        DisconnectedException(const std::string &reportedError) :
-                CriticalException(nullptr, std::string("cluster host disconnected")) {
+        DisconnectedException(const std::string &reportedError)
+         : CriticalException(nullptr, std::string("cluster host disconnected"))
+         , reportedError{} {
             this->reportedError = reportedError;
         }
     };

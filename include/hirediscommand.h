@@ -148,6 +148,8 @@ namespace RedisCluster
                        const size_t *argvlen ) :
         cluster_p_( cluster_p ),
         key_( key ),
+        cmd_{},
+        len_{},
         type_( SDS )
         {
             if( cluster_p == NULL )
@@ -161,6 +163,8 @@ namespace RedisCluster
                        const char *format, va_list ap ) :
         cluster_p_( cluster_p ),
         key_( key ),
+        cmd_{},
+        len_{},
         type_( FORMATTED_STRING )
         {
             if( cluster_p == NULL )
@@ -200,7 +204,7 @@ namespace RedisCluster
             string host, port;
 
             reply = processHiredisCommand( con.second );
-            HiredisProcess::checkCritical(reply, false, "", con.second);
+            HiredisProcess::checkCritical(reply, false, true, std::string(), con.second);
             cluster_p_->releaseConnection( con );
 
             HiredisProcess::processState state = HiredisProcess::processResult( reply, host, port);

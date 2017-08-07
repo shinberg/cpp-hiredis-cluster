@@ -55,7 +55,9 @@ namespace RedisCluster {
                          void* userData ) :
         data_( userData ),
         connect_(conn),
-        disconnect_(disconn)
+        disconnect_(disconn),
+        connections_{},
+        nodes_{}
         {
         }
         
@@ -63,7 +65,12 @@ namespace RedisCluster {
         {
             disconnect();
         }
-        
+
+        DefaultContainer( const DefaultContainer& ) = delete;
+        DefaultContainer& operator=( const DefaultContainer& ) = delete;
+        DefaultContainer( DefaultContainer&& ) noexcept = default;
+        DefaultContainer& operator=( DefaultContainer&& ) noexcept = default;
+
         inline
         void insert( typename RCluster::SlotRange slots, const char* host, int port )
         {
